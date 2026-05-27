@@ -6,11 +6,22 @@ import { useGameStore } from "@/store/gameStore";
 import { CHARACTERS, INTERACTABLE_OBJECTS } from "@/game/data";
 import { playFootstep } from "@/game/audio";
 
-const MOVE_SPEED = 5.5;
-const SPRINT_SPEED = 8.5;
+const MOVE_SPEED = 6.0;
+const SPRINT_SPEED = 10.0;
 const INTERACTION_RADIUS = 2.8;
 const PLAYER_RADIUS = 0.45;
-const FOOTSTEP_INTERVAL = 0.38;
+const FOOTSTEP_INTERVAL = 0.36;
+
+// Camera constants — tuned to match Fortnite third-person feel
+const CAM_DIST_DEFAULT = 5.5;
+const CAM_DIST_MIN = 2.5;
+const CAM_DIST_MAX = 9.0;
+const CAM_SHOULDER = 0.52;   // right-shoulder offset, like Fortnite
+const CAM_SPRING = 0.14;     // position lerp speed (spring feel)
+const CAM_LOOK_SPRING = 0.18; // lookAt lerp speed (slightly snappier)
+const PITCH_MIN = -0.18;     // look down ~10°
+const PITCH_MAX = 0.68;      // look up ~39°
+const SENSITIVITY = 0.007;
 
 interface PlayerControllerProps {
   walls: number[][];
@@ -20,11 +31,11 @@ export function PlayerController({ walls }: PlayerControllerProps) {
   const { camera } = useThree();
 
   const keysRef = useRef<Set<string>>(new Set());
-  // Y = 0 so feet sit on floor, matching all NPC positions
   const playerPosRef = useRef(new THREE.Vector3(-20, 0, 0));
   const velocityRef = useRef(new THREE.Vector3());
   const cameraYawRef = useRef(0);
-  const cameraPitchRef = useRef(0.35);
+  const cameraPitchRef = useRef(0.32);
+  const cameraDist = useRef(CAM_DIST_DEFAULT);
   const isPointerLocked = useRef(false);
   const footstepTimerRef = useRef(0);
   const isMovingRef = useRef(false);
@@ -32,6 +43,12 @@ export function PlayerController({ walls }: PlayerControllerProps) {
   const walkCycleRef = useRef(0);
   const hadDialogueRef = useRef(false);
   const prevDialogueRef = useRef<boolean>(false);
+
+  // Smooth look-at target for camera spring
+  const camLookRef = useRef(new THREE.Vector3(-20, 1.2, 0));
+
+  // Body yaw — smoothly interpolated so character rotates like Fortnite
+  const bodyYawRef = useRef(0);
 
   // Scene graph refs
   const meshRef = useRef<THREE.Group>(null);
@@ -43,7 +60,25 @@ export function PlayerController({ walls }: PlayerControllerProps) {
 
   const { setNearbyInteractable, stage, cameraMode, activeDialogue, setPlayerPosition } = useGameStore();
 
-  // Exit pointer lock on dialogue open; re-acquire automatically when it closes
+  // Auto-acquire pointer lock when game starts (no click needed)
+  useEffect(() => {
+    const canvas = document.querySelector("canvas");
+    if (!canvas) return;
+    const tryLock = () => {
+      if (!document.pointerLockElement && !useGameStore.getState().activeDialogue) {
+        canvas.requestPointerLock();
+      }
+    };
+    // Try immediately + on first click
+    const t = setTimeout(tryLock, 300);
+    canvas.addEventListener("click", tryLock);
+    return () => {
+      clearTimeout(t);
+      canvas.removeEventListener("click", tryLock);
+    };
+  }, []);
+
+  // Exit pointer lock on dialogue; re-acquire when it closes
   useEffect(() => {
     if (activeDialogue) {
       hadDialogueRef.current = true;
@@ -53,35 +88,45 @@ export function PlayerController({ walls }: PlayerControllerProps) {
       if (canvas) {
         const t = setTimeout(() => {
           if (!useGameStore.getState().activeDialogue) canvas.requestPointerLock();
-        }, 120);
+        }, 150);
         return () => clearTimeout(t);
       }
     }
     prevDialogueRef.current = !!activeDialogue;
   }, [activeDialogue]);
 
-  // Pointer lock + mouse look
+  // Mouse look + pointer lock
   useEffect(() => {
     const canvas = document.querySelector("canvas");
     if (!canvas) return;
 
     const onLockChange = () => { isPointerLocked.current = !!document.pointerLockElement; };
+
     const onMouseMove = (e: MouseEvent) => {
       if (!isPointerLocked.current) return;
-      cameraYawRef.current -= e.movementX * 0.0022;
-      cameraPitchRef.current = Math.max(0.08, Math.min(0.48, cameraPitchRef.current + e.movementY * 0.0022));
-    };
-    const onClick = () => {
-      if (!document.pointerLockElement && !useGameStore.getState().activeDialogue) canvas.requestPointerLock();
+      cameraYawRef.current -= e.movementX * SENSITIVITY;
+      cameraPitchRef.current = Math.max(
+        PITCH_MIN,
+        Math.min(PITCH_MAX, cameraPitchRef.current + e.movementY * SENSITIVITY)
+      );
     };
 
-    canvas.addEventListener("click", onClick);
+    // Scroll wheel zoom — exactly like Fortnite scroll-to-zoom
+    const onWheel = (e: WheelEvent) => {
+      cameraDist.current = Math.max(
+        CAM_DIST_MIN,
+        Math.min(CAM_DIST_MAX, cameraDist.current + e.deltaY * 0.008)
+      );
+    };
+
     document.addEventListener("pointerlockchange", onLockChange);
     document.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("wheel", onWheel, { passive: true });
+
     return () => {
-      canvas.removeEventListener("click", onClick);
       document.removeEventListener("pointerlockchange", onLockChange);
       document.removeEventListener("mousemove", onMouseMove);
+      canvas.removeEventListener("wheel", onWheel);
     };
   }, []);
 
@@ -98,6 +143,8 @@ export function PlayerController({ walls }: PlayerControllerProps) {
   }, []);
 
   useFrame((_, delta) => {
+    const dt = Math.min(delta, 0.05); // cap delta so no tunnelling on lag spikes
+
     if (activeDialogue) return;
 
     const keys = keysRef.current;
@@ -106,7 +153,8 @@ export function PlayerController({ walls }: PlayerControllerProps) {
     isSprintingRef.current = keys.has("shift");
     const speed = isSprintingRef.current ? SPRINT_SPEED : MOVE_SPEED;
 
-    const forward = new THREE.Vector3(Math.sin(cameraYawRef.current), 0, Math.cos(cameraYawRef.current));
+    const yaw = cameraYawRef.current;
+    const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
     const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
 
     const targetVel = new THREE.Vector3();
@@ -116,22 +164,18 @@ export function PlayerController({ walls }: PlayerControllerProps) {
     if (keys.has("d") || keys.has("arrowright")) targetVel.add(right);
     if (targetVel.lengthSq() > 0) targetVel.normalize().multiplyScalar(speed);
 
-    // Smooth acceleration
-    velocityRef.current.lerp(targetVel, Math.min(1, 7 * delta));
-    isMovingRef.current = velocityRef.current.lengthSq() > 0.08;
+    // Smooth acceleration — snappier than before (9x) for responsive feel
+    velocityRef.current.lerp(targetVel, Math.min(1, 9 * dt));
+    isMovingRef.current = velocityRef.current.lengthSq() > 0.06;
 
     if (isMovingRef.current) {
-      const move = velocityRef.current.clone().multiplyScalar(delta);
+      const move = velocityRef.current.clone().multiplyScalar(dt);
       if (!checkCollision(pos.x + move.x, pos.z, walls)) pos.x += move.x;
       if (!checkCollision(pos.x, pos.z + move.z, walls)) pos.z += move.z;
       pos.x = Math.max(-24, Math.min(24, pos.x));
       pos.z = Math.max(-19, Math.min(19, pos.z));
 
-      if (bodyRef.current && (Math.abs(move.x) > 0.0001 || Math.abs(move.z) > 0.0001)) {
-        bodyRef.current.rotation.y = Math.atan2(move.x, move.z);
-      }
-
-      footstepTimerRef.current += delta;
+      footstepTimerRef.current += dt;
       if (footstepTimerRef.current >= FOOTSTEP_INTERVAL) {
         footstepTimerRef.current = 0;
         playFootstep();
@@ -140,7 +184,18 @@ export function PlayerController({ walls }: PlayerControllerProps) {
       footstepTimerRef.current = 0;
     }
 
-    // Walking animation
+    // ---- Body rotation (Fortnite behaviour) ----
+    // When moving → face movement direction; when idle → face camera direction
+    let targetBodyYaw: number;
+    if (isMovingRef.current && velocityRef.current.lengthSq() > 0.5) {
+      targetBodyYaw = Math.atan2(velocityRef.current.x, velocityRef.current.z);
+    } else {
+      targetBodyYaw = yaw;
+    }
+    bodyYawRef.current = lerpAngle(bodyYawRef.current, targetBodyYaw, 10 * dt);
+    if (bodyRef.current) bodyRef.current.rotation.y = bodyYawRef.current;
+
+    // Walk animation
     const LL = leftLegRef.current;
     const RL = rightLegRef.current;
     const LA = leftArmRef.current;
@@ -148,54 +203,71 @@ export function PlayerController({ walls }: PlayerControllerProps) {
 
     if (LL && RL && LA && RA) {
       if (isMovingRef.current) {
-        const freq = isSprintingRef.current ? 10 : 7;
-        walkCycleRef.current += delta * freq;
+        const freq = isSprintingRef.current ? 11 : 7.5;
+        walkCycleRef.current += dt * freq;
         const sw = Math.sin(walkCycleRef.current);
-        LL.rotation.x = sw * 0.40;
-        RL.rotation.x = -sw * 0.40;
-        LA.rotation.x = -sw * 0.24;
-        RA.rotation.x = sw * 0.24;
+        const amp = isSprintingRef.current ? 0.50 : 0.40;
+        LL.rotation.x = sw * amp;
+        RL.rotation.x = -sw * amp;
+        LA.rotation.x = -sw * (amp * 0.6);
+        RA.rotation.x = sw * (amp * 0.6);
       } else {
-        // Smooth return to idle
-        LL.rotation.x *= 0.82;
-        RL.rotation.x *= 0.82;
-        LA.rotation.x *= 0.82;
-        RA.rotation.x *= 0.82;
+        LL.rotation.x *= 0.80;
+        RL.rotation.x *= 0.80;
+        LA.rotation.x *= 0.80;
+        RA.rotation.x *= 0.80;
       }
     }
 
-    // Sync mesh — add subtle vertical bob when walking
+    // Vertical bob
     if (meshRef.current) {
       meshRef.current.position.set(
         pos.x,
-        isMovingRef.current ? Math.abs(Math.sin(walkCycleRef.current * 2)) * 0.025 : 0,
+        isMovingRef.current ? Math.abs(Math.sin(walkCycleRef.current * 2)) * 0.028 : 0,
         pos.z
       );
     }
 
     setPlayerPosition([pos.x, 0, pos.z]);
 
-    // Camera (third-person)
+    // ---- Camera (third-person, Fortnite style) ----
     if (cameraMode === "third") {
-      const camDist = 5.0;
-      const targetCamX = pos.x - Math.sin(cameraYawRef.current) * camDist;
-      const targetCamZ = pos.z - Math.cos(cameraYawRef.current) * camDist;
-      const targetCamY = 1.5 + cameraPitchRef.current * camDist * 0.7;
-      camera.position.lerp(
-        new THREE.Vector3(
-          Math.max(-23, Math.min(23, targetCamX)),
-          Math.max(1.2, Math.min(4.8, targetCamY)),
-          Math.max(-18, Math.min(18, targetCamZ)),
-        ),
-        0.14,
+      const dist = cameraDist.current;
+      const pitch = cameraPitchRef.current;
+
+      // Right-shoulder offset vector
+      const camRight = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+
+      // Ideal camera position: behind + up + shoulder-right
+      const idealCamX = pos.x - Math.sin(yaw) * dist * Math.cos(pitch) + camRight.x * CAM_SHOULDER;
+      const idealCamY = pos.y + 1.1 + Math.sin(pitch) * dist + pitch * 0.5;
+      const idealCamZ = pos.z - Math.cos(yaw) * dist * Math.cos(pitch) + camRight.z * CAM_SHOULDER;
+
+      const targetCamPos = new THREE.Vector3(
+        Math.max(-23, Math.min(23, idealCamX)),
+        Math.max(1.1, Math.min(6.0, idealCamY)),
+        Math.max(-18, Math.min(18, idealCamZ)),
       );
-      camera.lookAt(pos.x, 1.2, pos.z);
+
+      // Spring camera position
+      camera.position.lerp(targetCamPos, CAM_SPRING);
+
+      // LookAt target slightly above player head + same shoulder offset
+      const lookTarget = new THREE.Vector3(
+        pos.x + camRight.x * CAM_SHOULDER * 0.4,
+        pos.y + 1.35,
+        pos.z + camRight.z * CAM_SHOULDER * 0.4,
+      );
+      camLookRef.current.lerp(lookTarget, CAM_LOOK_SPRING);
+      camera.lookAt(camLookRef.current);
+
     } else {
+      // First-person
       camera.position.set(pos.x, 1.6, pos.z);
       camera.lookAt(
-        pos.x + Math.sin(cameraYawRef.current),
+        pos.x + Math.sin(yaw),
         1.6 - cameraPitchRef.current * 0.5,
-        pos.z + Math.cos(cameraYawRef.current),
+        pos.z + Math.cos(yaw),
       );
     }
 
@@ -214,20 +286,19 @@ export function PlayerController({ walls }: PlayerControllerProps) {
               <meshStandardMaterial color="#000000" transparent opacity={0.15} />
             </mesh>
 
-            {/* LEFT LEG — pivot at hip (y = 0.87) */}
+            {/* LEFT LEG */}
             <group ref={leftLegRef} position={[-0.12, 0.87, 0]}>
               <mesh position={[0, -0.41, 0]} castShadow>
                 <boxGeometry args={[0.21, 0.82, 0.2]} />
                 <meshStandardMaterial color="#1e2a4a" roughness={0.8} />
               </mesh>
-              {/* Shoe attached to leg so it swings with it */}
               <mesh position={[0, -0.82, 0.06]} castShadow>
                 <boxGeometry args={[0.2, 0.11, 0.32]} />
                 <meshStandardMaterial color="#0a0a14" roughness={0.5} metalness={0.3} />
               </mesh>
             </group>
 
-            {/* RIGHT LEG — pivot at hip */}
+            {/* RIGHT LEG */}
             <group ref={rightLegRef} position={[0.12, 0.87, 0]}>
               <mesh position={[0, -0.41, 0]} castShadow>
                 <boxGeometry args={[0.21, 0.82, 0.2]} />
@@ -271,7 +342,7 @@ export function PlayerController({ walls }: PlayerControllerProps) {
               <meshStandardMaterial color="#f4f4f8" roughness={0.4} />
             </mesh>
 
-            {/* LEFT ARM — pivot at shoulder (y = 1.49) */}
+            {/* LEFT ARM */}
             <group ref={leftArmRef} position={[-0.38, 1.49, 0]}>
               <mesh position={[0, -0.32, 0]} castShadow>
                 <boxGeometry args={[0.17, 0.64, 0.2]} />
@@ -287,7 +358,7 @@ export function PlayerController({ walls }: PlayerControllerProps) {
               </mesh>
             </group>
 
-            {/* RIGHT ARM — pivot at shoulder */}
+            {/* RIGHT ARM */}
             <group ref={rightArmRef} position={[0.38, 1.49, 0]}>
               <mesh position={[0, -0.32, 0]} castShadow>
                 <boxGeometry args={[0.17, 0.64, 0.2]} />
@@ -345,6 +416,14 @@ export function PlayerController({ walls }: PlayerControllerProps) {
       </group>
     </group>
   );
+}
+
+// Angle lerp that handles 0/2π wraparound
+function lerpAngle(a: number, b: number, t: number): number {
+  let diff = b - a;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  return a + diff * Math.min(1, t);
 }
 
 function checkCollision(x: number, z: number, walls: number[][]): boolean {

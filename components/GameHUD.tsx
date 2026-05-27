@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "@/store/gameStore";
 
@@ -21,6 +21,21 @@ export function GameHUD() {
   } = useGameStore();
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [isLocked, setIsLocked] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+
+  // Track pointer lock state for the hint
+  useEffect(() => {
+    const onChange = () => setIsLocked(!!document.pointerLockElement);
+    document.addEventListener("pointerlockchange", onChange);
+    return () => document.removeEventListener("pointerlockchange", onChange);
+  }, []);
+
+  // Auto-hide controls hint after 10 s
+  useEffect(() => {
+    const t = setTimeout(() => setShowControls(false), 10000);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     if (stage === "ending" || stage === "review") return;
@@ -152,12 +167,87 @@ export function GameHUD() {
         )}
       </AnimatePresence>
 
-      {/* Controls hint (bottom left) */}
-      <div className="fixed bottom-4 left-4 z-30">
-        <div className="text-xs font-mono text-slate-700">
-          WASD · Move &nbsp;|&nbsp; Mouse · Look &nbsp;|&nbsp; E · Interact
+      {/* Crosshair — center dot, hidden during dialogue */}
+      {!nearbyInteractable && (
+        <div className="fixed inset-0 z-20 pointer-events-none flex items-center justify-center">
+          <div
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.55)",
+              boxShadow: "0 0 4px rgba(0,0,0,0.8)",
+            }}
+          />
         </div>
-      </div>
+      )}
+
+      {/* Pointer-lock hint — shown when mouse is not captured */}
+      <AnimatePresence>
+        {!isLocked && (
+          <motion.div
+            className="fixed inset-0 z-20 pointer-events-none flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div
+              className="px-5 py-3 rounded-xl text-sm font-mono text-slate-300 text-center"
+              style={{
+                background: "rgba(5,5,8,0.75)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                backdropFilter: "blur(12px)",
+                marginTop: "40vh",
+              }}
+            >
+              Click to enable mouse look
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Controls hint — fades out after 10 s */}
+      <AnimatePresence>
+        {showControls && (
+          <motion.div
+            className="fixed bottom-5 left-1/2 z-30 pointer-events-none"
+            style={{ transform: "translateX(-50%)" }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.4 }}
+          >
+            <div
+              className="flex items-center gap-4 px-5 py-2.5 rounded-xl text-xs font-mono text-slate-400"
+              style={{
+                background: "rgba(5,5,8,0.82)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              {[
+                ["WASD", "Move"],
+                ["Mouse", "Look"],
+                ["Scroll", "Zoom"],
+                ["Shift", "Sprint"],
+                ["E", "Interact"],
+                ["V", "Camera"],
+              ].map(([key, label]) => (
+                <span key={key} className="flex items-center gap-1.5">
+                  <span
+                    className="px-1.5 py-0.5 rounded text-slate-300"
+                    style={{ background: "rgba(99,102,241,0.18)", border: "1px solid rgba(99,102,241,0.3)" }}
+                  >
+                    {key}
+                  </span>
+                  <span className="text-slate-500">{label}</span>
+                </span>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Objective Panel (Tab) */}
       <AnimatePresence>

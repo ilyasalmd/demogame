@@ -50,11 +50,12 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
   const bodyRef = useRef<THREE.Group>(null);
   const [bobOffset] = useState(() => Math.random() * Math.PI * 2);
   const [lookOffset] = useState(() => Math.random() * Math.PI * 2);
+  const seatedOffsetRef = useRef(0);
 
   const speechBubble = useGameStore((s) => s.speechBubbles[character.id]);
   const playerPosition = useGameStore((s) => s.playerPosition);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
 
     const dx = playerPosition[0] - character.position[0];
@@ -64,9 +65,14 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
     const behavior: NPCBehavior =
       isNearby ? "nearby" : distToPlayer < 7 ? "aware" : "working";
 
+    // Smooth sit/stand transition — seated when working at desk, stand up when player approaches
+    const targetSeat = behavior === "working" ? -0.42 : 0;
+    seatedOffsetRef.current += (targetSeat - seatedOffsetRef.current) * Math.min(1, 4 * delta);
+
     if (groupRef.current) {
       groupRef.current.position.y =
-        character.position[1] + Math.sin(t * 1.1 + bobOffset) * (behavior === "working" ? 0.005 : 0.012);
+        character.position[1] + seatedOffsetRef.current +
+        Math.sin(t * 1.1 + bobOffset) * (behavior === "working" ? 0.005 : 0.012);
     }
 
     if (headRef.current) {

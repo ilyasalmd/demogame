@@ -304,6 +304,7 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
   const chatTimer = useRef(5 + Math.random() * 14);
   const walkSpeed = useRef(1.5 + Math.random() * 1.0);
   const posRef = useRef(new THREE.Vector3(...npc.position));
+  const seatedOffsetRef = useRef(0);
 
   const paths = WALK_PATHS[npc.id] ?? null;
   const voiceConfig = BG_VOICE_CONFIGS[npc.id];
@@ -342,6 +343,10 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
 
     const pos = posRef.current;
 
+    // Smooth sit/stand: seated at desk when working, standing when walking/chatting
+    const targetSeat = npcState === "working" ? -0.42 : 0;
+    seatedOffsetRef.current += (targetSeat - seatedOffsetRef.current) * Math.min(1, 4 * delta);
+
     if (npcState === "walking" && paths) {
       const target = new THREE.Vector3(...paths[waypointIdx]);
       const dir = target.clone().sub(pos);
@@ -359,12 +364,20 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
           rightArmRef.current.rotation.x = -swing;
         }
         if (groupRef.current) {
-          groupRef.current.position.set(pos.x, npc.position[1] + Math.abs(Math.sin(t * 6 + offset)) * 0.04, pos.z);
+          groupRef.current.position.set(
+            pos.x,
+            npc.position[1] + seatedOffsetRef.current + Math.abs(Math.sin(t * 6 + offset)) * 0.04,
+            pos.z
+          );
         }
       }
     } else {
       if (groupRef.current) {
-        groupRef.current.position.set(pos.x, npc.position[1] + Math.sin(t * 1.1 + offset) * 0.01, pos.z);
+        groupRef.current.position.set(
+          pos.x,
+          npc.position[1] + seatedOffsetRef.current + Math.sin(t * 1.1 + offset) * 0.01,
+          pos.z
+        );
       }
       if (leftArmRef.current && rightArmRef.current) {
         const type = Math.sin(t * 3.5 + offset) * 0.18;
