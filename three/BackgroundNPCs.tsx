@@ -8,12 +8,26 @@ import { COLLISION_WALLS } from "@/game/collisionWalls";
 import { NPC_POSITIONS } from "@/game/npcRegistry";
 
 // ─── NPC wall collision ───────────────────────────────────────────────────────
-const BG_NPC_RADIUS = 0.28;
+const BG_NPC_RADIUS        = 0.28; // actual body radius — used for movement blocking
+const BG_NPC_STRICT_RADIUS = 0.52; // larger clearance — used for look-ahead + errand targets
+
 function checkBgWall(x: number, z: number): boolean {
   for (const [minX, minZ, maxX, maxZ] of COLLISION_WALLS) {
     if (
       x + BG_NPC_RADIUS > minX && x - BG_NPC_RADIUS < maxX &&
       z + BG_NPC_RADIUS > minZ && z - BG_NPC_RADIUS < maxZ
+    ) return true;
+  }
+  return false;
+}
+
+/** Strict variant — gives extra clearance so look-ahead triggers earlier
+ *  and errand targets are placed well clear of desk/wall edges. */
+function checkBgWallStrict(x: number, z: number): boolean {
+  for (const [minX, minZ, maxX, maxZ] of COLLISION_WALLS) {
+    if (
+      x + BG_NPC_STRICT_RADIUS > minX && x - BG_NPC_STRICT_RADIUS < maxX &&
+      z + BG_NPC_STRICT_RADIUS > minZ && z - BG_NPC_STRICT_RADIUS < maxZ
     ) return true;
   }
   return false;
@@ -601,7 +615,8 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
           const oz = npc.position[2] + (Math.random() - 0.5) * 16;
           const cx = Math.max(-21, Math.min(21, ox));
           const cz = Math.max(-17, Math.min(17, oz));
-          if (!checkBgWall(cx, cz)) {
+          // Use strict radius so errand targets land well clear of desk / wall edges
+          if (!checkBgWallStrict(cx, cz)) {
             wanderTargetRef.current.set(cx, 0, cz);
             picked = true;
             break;
@@ -696,7 +711,7 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
         const wmz = dirScratch.current.z * walkSpeed.current * dt;
         // Preemptive look-ahead: steer perpendicular when a wall is 0.9 units ahead
         const LOOK_W = 0.9;
-        if (checkBgWall(pos.x + dirScratch.current.x * LOOK_W, pos.z + dirScratch.current.z * LOOK_W)) {
+        if (checkBgWallStrict(pos.x + dirScratch.current.x * LOOK_W, pos.z + dirScratch.current.z * LOOK_W)) {
           const nx = -dirScratch.current.z * walkSpeed.current * dt;
           const nz =  dirScratch.current.x * walkSpeed.current * dt;
           if      (!checkBgWall(pos.x + nx, pos.z + nz)) { pos.x += nx; pos.z += nz; }
@@ -742,7 +757,7 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
         const emz = dirScratch.current.z * walkSpeed.current * dt;
         // Preemptive look-ahead: nudge sideways before hitting wall
         const LOOK_E = 0.9;
-        if (checkBgWall(pos.x + dirScratch.current.x * LOOK_E, pos.z + dirScratch.current.z * LOOK_E)) {
+        if (checkBgWallStrict(pos.x + dirScratch.current.x * LOOK_E, pos.z + dirScratch.current.z * LOOK_E)) {
           const en = -dirScratch.current.z * walkSpeed.current * dt;
           const ez =  dirScratch.current.x * walkSpeed.current * dt;
           if      (!checkBgWall(pos.x + en, pos.z + ez)) { pos.x += en; pos.z += ez; }
@@ -791,7 +806,7 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
         const rmz = dirScratch.current.z * 1.25 * dt;
         // Preemptive look-ahead: nudge sideways before hitting wall while returning
         const LOOK_R = 0.9;
-        if (checkBgWall(pos.x + dirScratch.current.x * LOOK_R, pos.z + dirScratch.current.z * LOOK_R)) {
+        if (checkBgWallStrict(pos.x + dirScratch.current.x * LOOK_R, pos.z + dirScratch.current.z * LOOK_R)) {
           const rn = -dirScratch.current.z * 1.25 * dt;
           const rz =  dirScratch.current.x * 1.25 * dt;
           if      (!checkBgWall(pos.x + rn, pos.z + rz)) { pos.x += rn; pos.z += rz; }
@@ -857,15 +872,35 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
       }
     }
 
-    // Register position for player-NPC collision — only moving NPCs need it
-    // (seated NPCs stay at desk; player can't reach desk interiors anyway)
+    // ── NPC-to-NPC separation — push moving NPCs away from all other registered NPCs ──
+    // This prevents walkers from walking through each other AND through seated NPCs.
     if (npcStateRef.current !== "working") {
-      let reg = NPC_POSITIONS.get(npc.id);
-      if (!reg) { reg = new THREE.Vector3(); NPC_POSITIONS.set(npc.id, reg); }
-      reg.set(pos.x, 0, pos.z);
-    } else {
-      NPC_POSITIONS.delete(npc.id);
+      const SEP_R = 0.65;
+      let sepX = 0, sepZ = 0;
+      for (const [otherId, otherPos] of Array.from(NPC_POSITIONS.entries())) {
+        if (otherId === npc.id) continue;
+        const dx = pos.x - otherPos.x;
+        const dz = pos.z - otherPos.z;
+        const dSq = dx * dx + dz * dz;
+        if (dSq < SEP_R * SEP_R && dSq > 0.001) {
+          const d = Math.sqrt(dSq);
+          const f = (SEP_R - d) / SEP_R;
+          sepX += (dx / d) * f;
+          sepZ += (dz / d) * f;
+        }
+      }
+      if (sepX !== 0 || sepZ !== 0) {
+        const nx = pos.x + sepX * dt * 2.5;
+        const nz = pos.z + sepZ * dt * 2.5;
+        if (!checkBgWall(nx, pos.z)) { pos.x = nx; if (groupRef.current) groupRef.current.position.x = nx; }
+        if (!checkBgWall(pos.x, nz)) { pos.z = nz; if (groupRef.current) groupRef.current.position.z = nz; }
+      }
     }
+
+    // Register position for ALL NPCs (seated + moving) so player & walkers can't pass through anyone
+    let reg = NPC_POSITIONS.get(npc.id);
+    if (!reg) { reg = new THREE.Vector3(); NPC_POSITIONS.set(npc.id, reg); }
+    reg.set(pos.x, 0, pos.z);
   });
 
   return (
@@ -1078,6 +1113,14 @@ function LaughingNPC({
   const [offset] = useState(() => jokeOffset);
 
   const posId = `laugh_${position[0]}_${position[2]}`;
+
+  // Register static position so player can't walk through this NPC
+  useEffect(() => {
+    const vec = new THREE.Vector3(position[0], 0, position[2]);
+    NPC_POSITIONS.set(posId, vec);
+    return () => { NPC_POSITIONS.delete(posId); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const heightScale = getHeightScale(posId);
 
   useFrame((state, delta) => {
@@ -1313,6 +1356,11 @@ function CoffeeCarrierNPC({ route }: { route: CoffeeRoute }) {
       headRef.current.rotation.y = Math.sin(t * 0.5 + offset) * 0.12;
       headRef.current.rotation.x = phase.current === "waiting" ? 0.2 : 0;
     }
+
+    // Publish position so player can't walk through coffee carrier
+    let creg = NPC_POSITIONS.get(route.id);
+    if (!creg) { creg = new THREE.Vector3(); NPC_POSITIONS.set(route.id, creg); }
+    creg.set(pos.x, 0, pos.z);
   });
 
   return (
@@ -1569,6 +1617,15 @@ function LiftNPC({
           Math.abs(Math.sin(t * 6 + swingOffset)) * 0.04,
           posRef.current.z
         );
+    }
+
+    // Publish position when NPC is visible in the lobby (not inside the lift)
+    if (npcPhase.current === "inside") {
+      NPC_POSITIONS.delete(npcId);
+    } else {
+      let lreg = NPC_POSITIONS.get(npcId);
+      if (!lreg) { lreg = new THREE.Vector3(); NPC_POSITIONS.set(npcId, lreg); }
+      lreg.set(posRef.current.x, 0, posRef.current.z);
     }
   });
 

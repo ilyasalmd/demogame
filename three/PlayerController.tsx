@@ -264,7 +264,19 @@ export function PlayerController({ walls }: PlayerControllerProps) {
       pos.x = Math.max(-24, Math.min(24, pos.x));
       pos.z = Math.max(-19, Math.min(19, pos.z));
 
-      // NPC body collision — push player away from all registered NPCs (main + background)
+      footstepTimerRef.current += dt;
+      const stepInterval = isSprintingRef.current ? SPRINT_STEP_INTERVAL : WALK_STEP_INTERVAL;
+      if (footstepTimerRef.current >= stepInterval) {
+        footstepTimerRef.current = 0;
+        playFootstep(isSprintingRef.current);
+      }
+    } else {
+      footstepTimerRef.current = 0;
+    }
+
+    // NPC body collision — always active (moving OR standing), prevents walking/being pushed into any NPC
+    // Now that ALL NPCs (seated + moving) register in NPC_POSITIONS this covers desks/chairs too.
+    {
       const NPC_BODY_R = 0.55;
       for (const [, npcVec] of NPC_POSITIONS) {
         const ndx = pos.x - npcVec.x;
@@ -277,15 +289,6 @@ export function PlayerController({ walls }: PlayerControllerProps) {
           pos.z += (ndz / dist) * overlap;
         }
       }
-
-      footstepTimerRef.current += dt;
-      const stepInterval = isSprintingRef.current ? SPRINT_STEP_INTERVAL : WALK_STEP_INTERVAL;
-      if (footstepTimerRef.current >= stepInterval) {
-        footstepTimerRef.current = 0;
-        playFootstep(isSprintingRef.current);
-      }
-    } else {
-      footstepTimerRef.current = 0;
     }
 
     let targetBodyYaw: number;
