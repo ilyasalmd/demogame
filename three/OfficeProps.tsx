@@ -1783,25 +1783,15 @@ export function OfficeProps() {
       {/* ═══════════════════════════════════════
           ANALYTICS POD  (Maya area ~[2, 0, -10])
       ═══════════════════════════════════════ */}
-      {/* Front row */}
-      <Desk position={[-1, 0, -9]} />
-      <Desk position={[1.5, 0, -9]} />
-      <Desk position={[4, 0, -9]} />
-      <Monitor position={[-1, 0.83, -9.45]} screenColor="#6366f1" active codeLines={["df = load_pipeline()", "merged = df.merge(hist,", "  on='client_id')", "delta = merged['v2']-", "  merged['v1']", "print(delta.describe())"]} />
-      <Monitor position={[1.5, 0.83, -9.45]} screenColor="#ef4444" active codeLines={["⚠  DEDUPLICATION", "Found 847 dupes", "client_id  count", "C-10294    3", "C-10891    2", "Run fix? [Y/N]"]} />
-      <Monitor position={[4, 0.83, -9.45]} screenColor="#8b5cf6" active codeLines={["SELECT client_id,", "  SUM(value) AS total,", "  COUNT(*) AS rows", "FROM analytics.live", "GROUP BY client_id", "HAVING rows > 1"]} />
-      <Keyboard position={[-1, 0.77, -9.2]} />
-      <Keyboard position={[1.5, 0.77, -9.2]} />
-      <Keyboard position={[4, 0.77, -9.2]} />
-      <Chair position={[-1, 0, -8.2]} rotation={Math.PI} />
-      <Chair position={[1.5, 0, -8.2]} rotation={Math.PI} />
-      <Chair position={[4, 0, -8.2]} rotation={Math.PI} />
-
-      {/* Validation report desk — interactable */}
-      <Desk position={[4.5, 0, -10]} />
-      <Monitor position={[4.5, 0.83, -10.45]} screenColor="#ef4444" active codeLines={["VALIDATION REPORT", "─────────────────", "Rows checked: 12,847", "Errors found:   391", "Dupes found:    847", "Status: REVIEW ⚠"]} />
-      <Keyboard position={[4.5, 0.77, -10.2]} />
-      <Chair position={[4.5, 0, -9.2]} rotation={Math.PI} />
+      {/* Front row — 6-monitor bank per desk (MonitorBank, flip=true → monitors south, chair north) */}
+      {([-1, 1.5, 4] as number[]).map((x) => (
+        <group key={x} position={[x, 0, -9]}>
+          <Desk position={[0, 0, 0]} />
+          <MonitorBank hashX={x} hashZ={-9} flip={true} />
+          <Keyboard position={[0, 0.77, 0.25]} />
+          <Chair position={[0, 0, 0.8]} rotation={Math.PI} />
+        </group>
+      ))}
 
       {/* ═══════════════════════════════════════
           OPEN PLAN — WEST ANALYTICS ROWS

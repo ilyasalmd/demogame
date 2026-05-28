@@ -360,6 +360,9 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
   const bobOffsetRef  = useRef(Math.random() * Math.PI * 2);
   const lookOffsetRef = useRef(Math.random() * Math.PI * 2);
   const walkSpeedRef  = useRef(1.8 + Math.random() * 0.8);
+  // Obstacle-avoidance steering — rotates the travel direction when stuck
+  const stuckTimerRef  = useRef(0);
+  const steerAngleRef  = useRef(0);
 
   // Wander state — 3-phase: sitting → walking → returning → sitting …
   // Always start seated so characters begin at their desks.
@@ -447,12 +450,36 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
       const dist = dir.length();
       if (dist > 0.1) {
         dir.normalize();
-        const mx = dir.x * walkSpeedRef.current * delta;
-        const mz = dir.z * walkSpeedRef.current * delta;
-        if (!checkNPCWall(currentPos.current.x + mx, currentPos.current.z))
-          currentPos.current.x += mx;
-        if (!checkNPCWall(currentPos.current.x, currentPos.current.z + mz))
-          currentPos.current.z += mz;
+        // Apply steering rotation when avoiding obstacles
+        const sa  = steerAngleRef.current;
+        const cos = Math.cos(sa), sin = Math.sin(sa);
+        const sdx = dir.x * cos - dir.z * sin;
+        const sdz = dir.x * sin + dir.z * cos;
+        const mx = sdx * walkSpeedRef.current * delta;
+        const mz = sdz * walkSpeedRef.current * delta;
+        const blockedX = checkNPCWall(currentPos.current.x + mx, currentPos.current.z);
+        const blockedZ = checkNPCWall(currentPos.current.x, currentPos.current.z + mz);
+        if (!blockedX) currentPos.current.x += mx;
+        if (!blockedZ) currentPos.current.z += mz;
+        // Both axes blocked → increment stuck timer, then rotate steer angle 45°
+        if (blockedX && blockedZ) {
+          stuckTimerRef.current += delta;
+          if (stuckTimerRef.current > 0.4) {
+            steerAngleRef.current += Math.PI / 4;
+            stuckTimerRef.current = 0;
+            if (steerAngleRef.current >= Math.PI * 2) {
+              // Tried all 8 directions — abandon target and pick a fresh wander zone
+              steerAngleRef.current = 0;
+              const zone = WANDER_ZONES[Math.floor(Math.random() * WANDER_ZONES.length)];
+              wanderTarget.current.set(zone[0], 0, zone[2]);
+            }
+          }
+        } else {
+          // Moving freely — reset stuck timer and decay steering back to zero
+          stuckTimerRef.current = 0;
+          steerAngleRef.current *= (1 - Math.min(1, 2 * delta));
+          if (Math.abs(steerAngleRef.current) < 0.05) steerAngleRef.current = 0;
+        }
       }
 
       // Light NPC-to-NPC separation while walking
@@ -523,13 +550,21 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
     );
 
     if (isActivelyWalking && bodyRef.current) {
-      // Reuse scratch dir — always points toward current wanderTarget
+      // Reuse scratch dir — points toward current wanderTarget, then apply steering rotation
       const movDir = _scratchDir.current.set(
         wanderTarget.current.x - currentPos.current.x,
         0,
         wanderTarget.current.z - currentPos.current.z
       );
       if (movDir.length() > 0.1) {
+        movDir.normalize();
+        const sa = steerAngleRef.current;
+        if (Math.abs(sa) > 0.01) {
+          const cos = Math.cos(sa), sin = Math.sin(sa);
+          const rx = movDir.x * cos - movDir.z * sin;
+          const rz = movDir.x * sin + movDir.z * cos;
+          movDir.set(rx, 0, rz);
+        }
         const targetYaw = Math.atan2(movDir.x, movDir.z);
         let df = targetYaw - (bodyRef.current.rotation.y || 0);
         while (df > Math.PI)  df -= Math.PI * 2;

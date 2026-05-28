@@ -631,7 +631,7 @@ export const INTERACTABLE_OBJECTS = [
   {
     id: "validation_report_desk",
     label: "Read Validation Report",
-    position: [4, 1, -10] as [number, number, number],
+    position: [4, 1, -9] as [number, number, number],
     requiredStage: "meet_maya" as IncidentStage,
     glowColor: "#ef4444",
     documentId: "validation_report",

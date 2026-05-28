@@ -190,6 +190,24 @@ export function PlayerController({ walls }: PlayerControllerProps) {
     };
   }, []);
 
+  // Re-acquire pointer lock when player presses a movement key after returning from another
+  // tab or app — browsers auto-exit pointer lock on focus loss, so this re-enters it.
+  useEffect(() => {
+    const canvas = document.querySelector("canvas");
+    if (!canvas) return;
+    const MOVE_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"]);
+    const onMovementKey = (e: KeyboardEvent) => {
+      if (!MOVE_KEYS.has(e.key.toLowerCase())) return;
+      if (document.pointerLockElement) return; // already locked
+      const state = useGameStore.getState();
+      if (!state.ambienceUnlocked) return;      // still in intro
+      if (state.activeDialogue || state.activeDocument) return; // UI open
+      canvas.requestPointerLock();
+    };
+    window.addEventListener("keydown", onMovementKey);
+    return () => window.removeEventListener("keydown", onMovementKey);
+  }, []);
+
   // T key — toggle nearest door
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

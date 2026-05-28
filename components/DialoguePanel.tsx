@@ -502,7 +502,10 @@ function FreeTextInput({ onSubmit, speakerColor }: { onSubmit: (answer: string) 
         autoFocus
         value={value}
         onChange={(e) => setValue(e.target.value.slice(0, MAX))}
-        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
+        onKeyDown={(e) => {
+          e.stopPropagation(); // prevent game movement keys from firing while typing
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
+        }}
         placeholder="Type your recommendation... What should happen with the demo? (Press Enter to submit)"
         className="w-full text-sm text-white bg-transparent border rounded-xl px-3 py-2.5 outline-none resize-none leading-relaxed placeholder:text-slate-600"
         style={{
