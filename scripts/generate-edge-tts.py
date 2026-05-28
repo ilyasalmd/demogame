@@ -34,7 +34,7 @@ OUT_DIR    = os.path.join(ROOT, "public", "audio")
 #   priya         → NeerjaExpressive – British Indian female, precise compliance tone
 #   amara         → AriaNeural    – commanding US-accented Chief of Staff energy
 VOICE_CONFIG = {
-    "receptionist": dict(voice="en-GB-LibbyNeural",          rate="-5%",  pitch="+0Hz"),
+    "receptionist": dict(voice="en-GB-LibbyNeural",          rate="+10%", pitch="+0Hz"),
     "maya":         dict(voice="en-GB-SoniaNeural",          rate="+14%", pitch="+3Hz"),
     "theo":         dict(voice="en-GB-RyanNeural",           rate="-10%", pitch="-3Hz"),
     "oliver":       dict(voice="en-GB-ThomasNeural",         rate="+18%", pitch="+2Hz"),

@@ -160,7 +160,8 @@ export function DialoguePanel() {
 
   useEffect(() => {
     if (!activeDialogue) {
-      stopSpeech();
+      // Don't stop audio here — let the last line's audio finish naturally.
+      // (skipOrAdvance already stops audio when advancing between lines.)
       if (prevNpcIdRef.current) setSpeechBubble(prevNpcIdRef.current, "");
     }
   }, [activeDialogue]);
@@ -171,12 +172,20 @@ export function DialoguePanel() {
     };
   }, []);
 
+  // True when the next Space press will CLOSE the dialogue (last line, no options).
+  // In that case we let the audio finish rather than hard-stopping it.
+  const isLastNonOptionLine =
+    !!activeDialogue &&
+    dialogueStep === activeDialogue.lines.length - 1 &&
+    !activeDialogue.options?.length &&
+    !activeDialogue.freeTextInput;
+
   const skipOrAdvance = useCallback(() => {
     if (!showOptions && completedRef.current && !isSpeechBlocked()) {
-      stopSpeech();      // cut current audio immediately
+      if (!isLastNonOptionLine) stopSpeech(); // cut audio only when advancing to next line
       advanceDialogue();
     }
-  }, [showOptions, advanceDialogue]);
+  }, [showOptions, advanceDialogue, isLastNonOptionLine]);
 
   useEffect(() => {
     if (!activeDialogue) return;

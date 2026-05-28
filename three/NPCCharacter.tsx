@@ -360,17 +360,18 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
   const bobOffsetRef  = useRef(Math.random() * Math.PI * 2);
   const lookOffsetRef = useRef(Math.random() * Math.PI * 2);
   const walkSpeedRef  = useRef(1.8 + Math.random() * 0.8);
-  const seatedOffsetRef = useRef(0);
 
-  // Wander state as ref — mutations inside useFrame don't trigger re-renders
-  const wanderStateRef = useRef<"desk" | "walking">(
-    Math.random() < 0.65 ? "desk" : "walking"
-  );
-  const wanderTarget = useRef(new THREE.Vector3(...character.position));
-  const wanderTimer  = useRef(8 + Math.random() * 20);
-  const currentPos   = useRef(new THREE.Vector3(...character.position));
+  // Wander state — 3-phase: sitting → walking → returning → sitting …
+  // Always start seated so characters begin at their desks.
+  const wanderStateRef = useRef<"sitting" | "walking" | "returning">("sitting");
+  // Blend 0 = standing, 1 = fully seated — lerped each frame for smooth transition
+  const seatBlendRef   = useRef(1);
+  const wanderTarget   = useRef(new THREE.Vector3(...character.position));
+  // How long to sit before standing up (first stand is slightly randomised so
+  // all characters don't get up at the same time)
+  const wanderTimer    = useRef(8 + Math.random() * 22);
+  const currentPos     = useRef(new THREE.Vector3(...character.position));
   // Scratch vectors — reused every frame to avoid per-frame GC allocations
-  const _scratchTarget = useRef(new THREE.Vector3());
   const _scratchDir    = useRef(new THREE.Vector3());
 
   // Only subscribe to speech bubble — changes rarely; playerPosition read inside useFrame
@@ -393,37 +394,58 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
     const isInDialogue = activeDialogue !== null && dialogueCharacter === character.id;
     const shouldFreeze = isInDialogue || isNearby;
 
-    // ── Wander timer (paused while frozen) ───────────────────────────────────
+    // ── Wander state machine ─────────────────────────────────────────────────
+    // sitting → walking → returning → sitting …
+    // Characters are ALWAYS moving when walking or returning; they only stop
+    // when seated. They freeze in place (shouldFreeze) while player is nearby.
     if (!shouldFreeze) {
       wanderTimer.current -= delta;
-      if (wanderTimer.current <= 0) {
-        if (wanderStateRef.current === "desk") {
-          const zone = WANDER_ZONES[Math.floor(Math.random() * WANDER_ZONES.length)];
-          wanderTarget.current.set(zone[0], 0, zone[2]);
-          wanderStateRef.current = "walking";
-          wanderTimer.current = 6 + Math.random() * 10;
-        } else {
+
+      if (wanderStateRef.current === "sitting" && wanderTimer.current <= 0) {
+        // Stand up — pick a random wander zone
+        const zone = WANDER_ZONES[Math.floor(Math.random() * WANDER_ZONES.length)];
+        wanderTarget.current.set(zone[0], 0, zone[2]);
+        wanderStateRef.current = "walking";
+        wanderTimer.current = 8 + Math.random() * 12; // safety timeout
+
+      } else if (wanderStateRef.current === "walking") {
+        const dist = _scratchDir.current
+          .copy(wanderTarget.current).sub(currentPos.current).length();
+        if (dist < 0.3 || wanderTimer.current <= 0) {
+          // Arrived (or timed out) — head back to spawn
           wanderTarget.current.set(character.position[0], 0, character.position[2]);
-          wanderStateRef.current = "desk";
-          wanderTimer.current = 15 + Math.random() * 25;
+          wanderStateRef.current = "returning";
+          wanderTimer.current = 999;
+        }
+
+      } else if (wanderStateRef.current === "returning") {
+        const spawnDist = Math.sqrt(
+          (character.position[0] - currentPos.current.x) ** 2 +
+          (character.position[2] - currentPos.current.z) ** 2
+        );
+        if (spawnDist < 0.25) {
+          // Back at desk — sit down
+          wanderStateRef.current = "sitting";
+          wanderTimer.current = 15 + Math.random() * 30;
         }
       }
     }
 
-    // ── Movement (frozen while nearby or in dialogue) ─────────────────────────
-    // Both "walking" (wander) and "desk" (return-to-spawn) use the same
-    // walk-speed stepping so the NPC never teleports.
-    if (!shouldFreeze) {
-      // Determine the current movement target (reuse scratch to avoid allocation)
-      const target = wanderStateRef.current === "walking"
-        ? wanderTarget.current
-        : _scratchTarget.current.set(character.position[0], 0, character.position[2]);
+    // ── Seat-blend lerp ───────────────────────────────────────────────────────
+    // 1 = fully seated, 0 = standing upright.
+    // Stand up when: frozen (player nearby/dialogue) or not in sitting state.
+    const seatTarget = (wanderStateRef.current === "sitting" && !shouldFreeze) ? 1 : 0;
+    seatBlendRef.current += (seatTarget - seatBlendRef.current) * Math.min(1, 3 * delta);
 
-      const dir  = _scratchDir.current.copy(target).sub(currentPos.current);
+    // ── Movement ─────────────────────────────────────────────────────────────
+    const isMoving =
+      !shouldFreeze &&
+      (wanderStateRef.current === "walking" || wanderStateRef.current === "returning");
+
+    if (isMoving) {
+      const dir  = _scratchDir.current.copy(wanderTarget.current).sub(currentPos.current);
       const dist = dir.length();
-      const arrivalThreshold = wanderStateRef.current === "walking" ? 0.3 : 0.25;
-
-      if (dist > arrivalThreshold) {
+      if (dist > 0.1) {
         dir.normalize();
         const mx = dir.x * walkSpeedRef.current * delta;
         const mz = dir.z * walkSpeedRef.current * delta;
@@ -431,15 +453,9 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
           currentPos.current.x += mx;
         if (!checkNPCWall(currentPos.current.x, currentPos.current.z + mz))
           currentPos.current.z += mz;
-      } else if (wanderStateRef.current === "walking") {
-        // Reached wander target — return to desk
-        wanderTarget.current.set(character.position[0], 0, character.position[2]);
-        wanderStateRef.current = "desk";
-        wanderTimer.current = 15 + Math.random() * 25;
       }
-      // (If "desk" and dist <= 0.25 the NPC is at its spawn — just stand still)
 
-      // ── Light NPC-to-NPC separation (avoid walking through each other) ───────
+      // Light NPC-to-NPC separation while walking
       let sepX = 0, sepZ = 0;
       for (const [otherId, otherPos] of NPC_POSITIONS) {
         if (otherId === character.id) continue;
@@ -474,16 +490,14 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
     const behavior: NPCBehavior =
       shouldFreeze ? "nearby" : distToPlayer < 7 ? "aware" : "working";
 
-    seatedOffsetRef.current += (0 - seatedOffsetRef.current) * Math.min(1, 4 * delta);
-
     // ── Group position ────────────────────────────────────────────────────────
     if (groupRef.current) {
       groupRef.current.position.x = currentPos.current.x;
       groupRef.current.position.z = currentPos.current.z;
       groupRef.current.position.y =
-        character.position[1] +
-        seatedOffsetRef.current +
-        Math.sin(t * 1.1 + bobOffsetRef.current) * (behavior === "working" ? 0.005 : 0.012);
+        character.position[1]
+        - seatBlendRef.current * 0.35   // lower body when seated
+        + Math.sin(t * 1.1 + bobOffsetRef.current) * (behavior === "working" ? 0.005 : 0.012);
     }
 
     // ── Head ──────────────────────────────────────────────────────────────────
@@ -504,25 +518,16 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
     }
 
     // ── Face movement direction whenever actively walking (wander OR return) ───
-    const spawnDist = Math.sqrt(
-      (character.position[0] - currentPos.current.x) ** 2 +
-      (character.position[2] - currentPos.current.z) ** 2
+    const isActivelyWalking = isMoving && (
+      wanderTarget.current.distanceTo(currentPos.current) > 0.3
     );
-    const isActivelyWalking =
-      !shouldFreeze &&
-      ((wanderStateRef.current === "walking" && wanderTarget.current.distanceTo(currentPos.current) > 0.3) ||
-       (wanderStateRef.current === "desk"    && spawnDist > 0.25));
 
     if (isActivelyWalking && bodyRef.current) {
-      // Reuse scratch dir (already points desk→spawn or pos→wander target)
+      // Reuse scratch dir — always points toward current wanderTarget
       const movDir = _scratchDir.current.set(
-        wanderStateRef.current === "walking"
-          ? wanderTarget.current.x - currentPos.current.x
-          : character.position[0] - currentPos.current.x,
+        wanderTarget.current.x - currentPos.current.x,
         0,
-        wanderStateRef.current === "walking"
-          ? wanderTarget.current.z - currentPos.current.z
-          : character.position[2] - currentPos.current.z
+        wanderTarget.current.z - currentPos.current.z
       );
       if (movDir.length() > 0.1) {
         const targetYaw = Math.atan2(movDir.x, movDir.z);
@@ -551,13 +556,22 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
       }
     }
 
-    // ── Leg swing — animate whenever actively walking; decelerate to rest otherwise
+    // ── Leg animation — walk swing, seated fold, or idle rest ────────────────
     if (leftLegRef.current && rightLegRef.current) {
       if (isActivelyWalking) {
+        // Full stride animation when walking
         const step = Math.sin(t * 4.5 + bobOffsetRef.current) * 0.32;
         leftLegRef.current.rotation.x  =  step;
         rightLegRef.current.rotation.x = -step;
+      } else if (seatBlendRef.current > 0.05) {
+        // Smoothly fold legs forward as character sits down
+        const seatAngle = -1.1 * seatBlendRef.current;
+        leftLegRef.current.rotation.x  +=
+          (seatAngle - leftLegRef.current.rotation.x)  * Math.min(1, 4 * delta);
+        rightLegRef.current.rotation.x +=
+          (seatAngle - rightLegRef.current.rotation.x) * Math.min(1, 4 * delta);
       } else {
+        // Standing idle — dampen any residual rotation
         leftLegRef.current.rotation.x  *= 0.85;
         rightLegRef.current.rotation.x *= 0.85;
       }
