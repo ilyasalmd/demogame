@@ -160,18 +160,18 @@ function ArticulatedBody({ skinColor, outfit, hair, watchColor, headRef, leftArm
   return (
     <group>
       {/* ── Feet ── */}
-      <mesh position={[-0.115, 0.055, 0.07]} castShadow>
+      <mesh position={[-0.115, 0.055, 0.07]}>
         <boxGeometry args={[0.18, 0.09, 0.30]} />
         <meshStandardMaterial color={shoeColor} roughness={0.45} metalness={0.35} />
       </mesh>
-      <mesh position={[0.115, 0.055, 0.07]} castShadow>
+      <mesh position={[0.115, 0.055, 0.07]}>
         <boxGeometry args={[0.18, 0.09, 0.30]} />
         <meshStandardMaterial color={shoeColor} roughness={0.45} metalness={0.35} />
       </mesh>
 
       {/* ── Right leg ── */}
       <group ref={rightLegRef} position={[0.115, 0.78, 0]}>
-        <mesh position={[0, 0.18, 0]} castShadow>
+        <mesh position={[0, 0.18, 0]}>
           <boxGeometry args={[0.190, 0.36, 0.195]} />
           <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
         </mesh>
@@ -179,7 +179,7 @@ function ArticulatedBody({ skinColor, outfit, hair, watchColor, headRef, leftArm
           <cylinderGeometry args={[0.098, 0.098, 0.09, 8]} />
           <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
         </mesh>
-        <mesh position={[0, -0.24, 0]} castShadow>
+        <mesh position={[0, -0.24, 0]}>
           <boxGeometry args={[0.178, 0.42, 0.185]} />
           <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
         </mesh>
@@ -187,7 +187,7 @@ function ArticulatedBody({ skinColor, outfit, hair, watchColor, headRef, leftArm
 
       {/* ── Left leg ── */}
       <group ref={leftLegRef} position={[-0.115, 0.78, 0]}>
-        <mesh position={[0, 0.18, 0]} castShadow>
+        <mesh position={[0, 0.18, 0]}>
           <boxGeometry args={[0.190, 0.36, 0.195]} />
           <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
         </mesh>
@@ -195,22 +195,22 @@ function ArticulatedBody({ skinColor, outfit, hair, watchColor, headRef, leftArm
           <cylinderGeometry args={[0.098, 0.098, 0.09, 8]} />
           <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
         </mesh>
-        <mesh position={[0, -0.24, 0]} castShadow>
+        <mesh position={[0, -0.24, 0]}>
           <boxGeometry args={[0.178, 0.42, 0.185]} />
           <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
         </mesh>
       </group>
 
       {/* ── Torso (tapered) ── */}
-      <mesh position={[0, 1.10, 0]} castShadow>
+      <mesh position={[0, 1.10, 0]}>
         <boxGeometry args={[0.44, 0.28, 0.265]} />
         <meshStandardMaterial color={outfit.jacket} roughness={0.62} />
       </mesh>
-      <mesh position={[0, 1.30, 0]} castShadow>
+      <mesh position={[0, 1.30, 0]}>
         <boxGeometry args={[0.50, 0.20, 0.275]} />
         <meshStandardMaterial color={outfit.jacket} roughness={0.62} />
       </mesh>
-      <mesh position={[0, 1.46, 0]} castShadow>
+      <mesh position={[0, 1.46, 0]}>
         <boxGeometry args={[0.54, 0.18, 0.280]} />
         <meshStandardMaterial color={outfit.jacket} roughness={0.62} />
       </mesh>
@@ -231,7 +231,7 @@ function ArticulatedBody({ skinColor, outfit, hair, watchColor, headRef, leftArm
 
       {/* ── Right arm ── */}
       <group ref={rightArmRef} position={[0.36, 1.44, 0]}>
-        <mesh position={[0, -0.14, 0]} castShadow>
+        <mesh position={[0, -0.14, 0]}>
           <boxGeometry args={[0.160, 0.30, 0.185]} />
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.62} />
         </mesh>
@@ -239,7 +239,7 @@ function ArticulatedBody({ skinColor, outfit, hair, watchColor, headRef, leftArm
           <cylinderGeometry args={[0.082, 0.082, 0.07, 7]} />
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.62} />
         </mesh>
-        <mesh position={[0, -0.48, 0]} castShadow>
+        <mesh position={[0, -0.48, 0]}>
           <boxGeometry args={[0.145, 0.30, 0.168]} />
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.62} />
         </mesh>
@@ -255,7 +255,7 @@ function ArticulatedBody({ skinColor, outfit, hair, watchColor, headRef, leftArm
 
       {/* ── Left arm ── */}
       <group ref={leftArmRef} position={[-0.36, 1.44, 0]}>
-        <mesh position={[0, -0.14, 0]} castShadow>
+        <mesh position={[0, -0.14, 0]}>
           <boxGeometry args={[0.160, 0.30, 0.185]} />
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.62} />
         </mesh>
@@ -263,7 +263,7 @@ function ArticulatedBody({ skinColor, outfit, hair, watchColor, headRef, leftArm
           <cylinderGeometry args={[0.082, 0.082, 0.07, 7]} />
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.62} />
         </mesh>
-        <mesh position={[0, -0.48, 0]} castShadow>
+        <mesh position={[0, -0.48, 0]}>
           <boxGeometry args={[0.145, 0.30, 0.168]} />
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.62} />
         </mesh>
@@ -289,7 +289,7 @@ function ArticulatedBody({ skinColor, outfit, hair, watchColor, headRef, leftArm
       </mesh>
 
       {/* ── Head ── */}
-      <mesh ref={headRef} position={[0, 1.88, 0]} scale={[1, 1.06, 0.98]} castShadow>
+      <mesh ref={headRef} position={[0, 1.88, 0]} scale={[1, 1.06, 0.98]}>
         <sphereGeometry args={[0.218, 9, 7]} />
         <meshStandardMaterial color={skinColor} roughness={0.62} />
       </mesh>

@@ -138,17 +138,17 @@ export function OfficeScene() {
 function SceneLighting() {
   return (
     <>
-      {/* Bright daytime ambient — London overcast/sunny mix */}
-      <ambientLight intensity={2.0} color="#deeeff" />
+      {/* Bright daytime ambient — boosted to compensate for removed rect area lights */}
+      <ambientLight intensity={2.8} color="#deeeff" />
 
-      {/* Main sun — 1024 shadow map (was 2048) */}
+      {/* Main sun — 512 shadow map (reduced for perf) */}
       <directionalLight
         position={[45, 40, -15]}
         intensity={4.0}
         color="#fff8e0"
         castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
+        shadow-mapSize-width={512}
+        shadow-mapSize-height={512}
         shadow-camera-near={1}
         shadow-camera-far={80}
         shadow-camera-left={-28}
@@ -161,12 +161,7 @@ function SceneLighting() {
       <directionalLight position={[0, 50, 0]} intensity={1.6} color="#c0d8f8" />
       <directionalLight position={[-20, 20, 30]} intensity={0.9} color="#d0e4f8" />
 
-      {/* Ceiling fill — 8 wide-area lights replacing 17 narrow ones */}
-      <rectAreaLight position={[0, 5.3, -13]} width={30} height={6} intensity={10} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[0, 5.3, -1]}  width={32} height={8} intensity={11} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[0, 5.3,  9]}  width={30} height={6} intensity={10} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[-18, 5.3, -5]} width={6} height={20} intensity={9} color="#f0e8d8" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[18, 5.3, -5]}  width={6} height={20} intensity={9} color="#f0e8d8" rotation={[Math.PI / 2, 0, 0]} />
+      {/* Ceiling fill — removed rect area lights (expensive WebGL shaders); brightness compensated by ambient */}
 
       {/* Zone accent colours — 4 key points (was 9) */}
       <pointLight position={[0, 3, -14]} intensity={10} color="#6366f1" distance={14} decay={2} />

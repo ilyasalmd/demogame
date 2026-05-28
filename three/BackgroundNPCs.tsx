@@ -354,7 +354,7 @@ function HumanBody({
 
       {/* ── Right leg (upper + knee + lower) ── */}
       {/* lower leg */}
-      <mesh position={[0.112, 0.30, 0]} castShadow>
+      <mesh position={[0.112, 0.30, 0]}>
         <boxGeometry args={[0.170, 0.38, 0.178]} />
         <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
       </mesh>
@@ -364,13 +364,13 @@ function HumanBody({
         <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
       </mesh>
       {/* upper leg */}
-      <mesh position={[0.112, 0.74, 0]} castShadow>
+      <mesh position={[0.112, 0.74, 0]}>
         <boxGeometry args={[0.180, 0.36, 0.182]} />
         <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
       </mesh>
 
       {/* ── Left leg ── */}
-      <mesh position={[-0.112, 0.30, 0]} castShadow>
+      <mesh position={[-0.112, 0.30, 0]}>
         <boxGeometry args={[0.170, 0.38, 0.178]} />
         <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
       </mesh>
@@ -378,24 +378,24 @@ function HumanBody({
         <cylinderGeometry args={[0.090, 0.090, 0.080, 7]} />
         <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
       </mesh>
-      <mesh position={[-0.112, 0.74, 0]} castShadow>
+      <mesh position={[-0.112, 0.74, 0]}>
         <boxGeometry args={[0.180, 0.36, 0.182]} />
         <meshStandardMaterial color={outfit.trouser} roughness={0.82} />
       </mesh>
 
       {/* ── Torso (3 stacked segments, tapered) ── */}
       {/* waist */}
-      <mesh position={[0, 1.04, 0]} castShadow>
+      <mesh position={[0, 1.04, 0]}>
         <boxGeometry args={[0.42, 0.26, 0.255]} />
         <meshStandardMaterial color={outfit.jacket} roughness={0.64} />
       </mesh>
       {/* mid */}
-      <mesh position={[0, 1.22, 0]} castShadow>
+      <mesh position={[0, 1.22, 0]}>
         <boxGeometry args={[0.47, 0.18, 0.262]} />
         <meshStandardMaterial color={outfit.jacket} roughness={0.64} />
       </mesh>
       {/* chest */}
-      <mesh position={[0, 1.38, 0]} castShadow>
+      <mesh position={[0, 1.38, 0]}>
         <boxGeometry args={[0.51, 0.16, 0.268]} />
         <meshStandardMaterial color={outfit.jacket} roughness={0.64} />
       </mesh>
@@ -418,7 +418,7 @@ function HumanBody({
       {/* ── Right arm (shoulder pivot = 1.38) ── */}
       <group ref={rightArmRef} position={[0.345, 1.38, 0]}>
         {/* upper arm */}
-        <mesh position={[0, -0.13, 0]} castShadow>
+        <mesh position={[0, -0.13, 0]}>
           <boxGeometry args={[0.150, 0.28, 0.172]} />
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.64} />
         </mesh>
@@ -428,7 +428,7 @@ function HumanBody({
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.64} />
         </mesh>
         {/* forearm */}
-        <mesh position={[0, -0.45, 0]} castShadow>
+        <mesh position={[0, -0.45, 0]}>
           <boxGeometry args={[0.136, 0.27, 0.155]} />
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.64} />
         </mesh>
@@ -447,7 +447,7 @@ function HumanBody({
       {/* ── Left arm (shoulder pivot = 1.38) ── */}
       <group ref={leftArmRef} position={[-0.345, 1.38, 0]}>
         {/* upper arm */}
-        <mesh position={[0, -0.13, 0]} castShadow>
+        <mesh position={[0, -0.13, 0]}>
           <boxGeometry args={[0.150, 0.28, 0.172]} />
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.64} />
         </mesh>
@@ -457,7 +457,7 @@ function HumanBody({
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.64} />
         </mesh>
         {/* forearm */}
-        <mesh position={[0, -0.45, 0]} castShadow>
+        <mesh position={[0, -0.45, 0]}>
           <boxGeometry args={[0.136, 0.27, 0.155]} />
           <meshStandardMaterial color={outfit.sleeveColor} roughness={0.64} />
         </mesh>
@@ -485,7 +485,7 @@ function HumanBody({
       </mesh>
 
       {/* ── Head (slightly elongated on Y) ── */}
-      <mesh ref={headRef} position={[0, headY, 0]} scale={[1, 1.06, 0.97]} castShadow>
+      <mesh ref={headRef} position={[0, headY, 0]} scale={[1, 1.06, 0.97]}>
         <sphereGeometry args={[0.210, 9, 7]} />
         <meshStandardMaterial color={skinColor} roughness={0.62} />
       </mesh>
@@ -673,12 +673,14 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
     const inRange = distSq < 900; // animate fully within 30 m
 
     // ── Frame staggering: seated NPCs >15 m away update at ~20 fps (skip 2/3) ─
-    // Walkers, errands and returning NPCs always get every frame for smooth motion.
     const isSeatedFar =
       !npc.isWalker &&
       npcStateRef.current === "working" &&
       distSq > 225; // 15 m²
     if (isSeatedFar && frameCounter.current % 3 !== frameSlot) return;
+
+    // Moving NPCs >20 m away: only update every 2nd frame (still smooth at ~30fps)
+    if (npcStateRef.current !== "working" && distSq > 400 && frameCounter.current % 2 !== frameSlot % 2) return;
 
     // ── Walker NPC (uses predefined path) ────────────────────────────────────
     if (npcState === "walking" && paths) {
@@ -692,6 +694,14 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
         if (bodyRef.current) bodyRef.current.rotation.y = Math.atan2(dirScratch.current.x, dirScratch.current.z);
         const wmx = dirScratch.current.x * walkSpeed.current * dt;
         const wmz = dirScratch.current.z * walkSpeed.current * dt;
+        // Preemptive look-ahead: steer perpendicular when a wall is 0.9 units ahead
+        const LOOK_W = 0.9;
+        if (checkBgWall(pos.x + dirScratch.current.x * LOOK_W, pos.z + dirScratch.current.z * LOOK_W)) {
+          const nx = -dirScratch.current.z * walkSpeed.current * dt;
+          const nz =  dirScratch.current.x * walkSpeed.current * dt;
+          if      (!checkBgWall(pos.x + nx, pos.z + nz)) { pos.x += nx; pos.z += nz; }
+          else if (!checkBgWall(pos.x - nx, pos.z - nz)) { pos.x -= nx; pos.z -= nz; }
+        }
         const preMX = pos.x, preMZ = pos.z;
         if (!checkBgWall(pos.x + wmx, pos.z)) pos.x += wmx;
         if (!checkBgWall(pos.x, pos.z + wmz)) pos.z += wmz;
@@ -699,7 +709,7 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
         // Stuck: advance to next waypoint so walker never freezes against a wall
         if ((pos.x - preMX) ** 2 + (pos.z - preMZ) ** 2 < 4e-6) {
           stuckTimerRef.current += dt;
-          if (stuckTimerRef.current > 0.8) {
+          if (stuckTimerRef.current > 0.35) {
             stuckTimerRef.current = 0;
             setWaypointIdx(i => (i + 1) % paths.length);
           }
@@ -725,11 +735,19 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
           if (rightArmRef.current) rightArmRef.current.rotation.x = -0.15 - Math.sin(t * 1.4 + offset) * 0.07;
         }
       } else {
-        // Walk toward errand target — axis-separated wall collision
+        // Walk toward errand target — axis-separated wall collision with look-ahead
         dirScratch.current.normalize();
         if (bodyRef.current) bodyRef.current.rotation.y = Math.atan2(dirScratch.current.x, dirScratch.current.z);
         const emx = dirScratch.current.x * walkSpeed.current * dt;
         const emz = dirScratch.current.z * walkSpeed.current * dt;
+        // Preemptive look-ahead: nudge sideways before hitting wall
+        const LOOK_E = 0.9;
+        if (checkBgWall(pos.x + dirScratch.current.x * LOOK_E, pos.z + dirScratch.current.z * LOOK_E)) {
+          const en = -dirScratch.current.z * walkSpeed.current * dt;
+          const ez =  dirScratch.current.x * walkSpeed.current * dt;
+          if      (!checkBgWall(pos.x + en, pos.z + ez)) { pos.x += en; pos.z += ez; }
+          else if (!checkBgWall(pos.x - en, pos.z - ez)) { pos.x -= en; pos.z -= ez; }
+        }
         const preEX = pos.x, preEZ = pos.z;
         if (!checkBgWall(pos.x + emx, pos.z)) pos.x += emx;
         if (!checkBgWall(pos.x, pos.z + emz)) pos.z += emz;
@@ -737,7 +755,7 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
         // Stuck: rotate heading ±90° and try a new nearby target to navigate around obstacle
         if ((pos.x - preEX) ** 2 + (pos.z - preEZ) ** 2 < 4e-6) {
           stuckTimerRef.current += dt;
-          if (stuckTimerRef.current > 0.7) {
+          if (stuckTimerRef.current > 0.3) {
             stuckTimerRef.current = 0;
             const baseAngle = Math.atan2(dirScratch.current.x, dirScratch.current.z);
             const escDist = 3 + Math.random() * 3;
@@ -771,6 +789,14 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
         if (bodyRef.current) bodyRef.current.rotation.y = Math.atan2(dirScratch.current.x, dirScratch.current.z);
         const rmx = dirScratch.current.x * 1.25 * dt;
         const rmz = dirScratch.current.z * 1.25 * dt;
+        // Preemptive look-ahead: nudge sideways before hitting wall while returning
+        const LOOK_R = 0.9;
+        if (checkBgWall(pos.x + dirScratch.current.x * LOOK_R, pos.z + dirScratch.current.z * LOOK_R)) {
+          const rn = -dirScratch.current.z * 1.25 * dt;
+          const rz =  dirScratch.current.x * 1.25 * dt;
+          if      (!checkBgWall(pos.x + rn, pos.z + rz)) { pos.x += rn; pos.z += rz; }
+          else if (!checkBgWall(pos.x - rn, pos.z - rz)) { pos.x -= rn; pos.z -= rz; }
+        }
         const preRX = pos.x, preRZ = pos.z;
         if (!checkBgWall(pos.x + rmx, pos.z)) pos.x += rmx;
         if (!checkBgWall(pos.x, pos.z + rmz)) pos.z += rmz;
@@ -778,7 +804,7 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
         // Stuck returning: sidestep perpendicular to current heading to route around obstacle
         if ((pos.x - preRX) ** 2 + (pos.z - preRZ) ** 2 < 4e-6) {
           stuckTimerRef.current += dt;
-          if (stuckTimerRef.current > 1.0) {
+          if (stuckTimerRef.current > 0.3) {
             stuckTimerRef.current = 0;
             const perpAngle = Math.atan2(dirScratch.current.x, dirScratch.current.z) + (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2);
             const sx = Math.max(-21, Math.min(21, pos.x + Math.sin(perpAngle) * 2));
@@ -797,7 +823,7 @@ function BgNPCMesh({ npc }: { npc: BgNPC }) {
     // ── Working (seated at desk) ──────────────────────────────────────────────
     } else if (npcState === "working") {
       // NPC is already at home (walked here in "returning"); just sit and animate
-      if (groupRef.current) groupRef.current.position.set(home.x, -0.44 + Math.sin(t * 0.5 + offset) * 0.003, home.z);
+      if (groupRef.current) groupRef.current.position.set(home.x, -0.35 + Math.sin(t * 0.5 + offset) * 0.003, home.z);
       pos.set(home.x, home.y, home.z); // keep posRef in sync
       if (bodyRef.current) {
         const targetFacing = npc.facing ?? 0;
