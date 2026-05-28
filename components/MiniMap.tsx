@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense, useMemo } from "react";
 import { useGameStore } from "@/store/gameStore";
 import { CHARACTERS } from "@/game/data";
+import { NPC_POSITIONS } from "@/game/npcRegistry";
 import { motion } from "framer-motion";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Text } from "@react-three/drei";
@@ -62,10 +63,11 @@ function DotGrid({ mapW, mapH, pad }: { mapW: number; mapH: number; pad: number 
   );
 }
 
-function MapSVGThumb({ pmx, pmy, interactionsCompleted, nearbyInteractable }: {
+function MapSVGThumb({ pmx, pmy, interactionsCompleted, nearbyInteractable, npcPositions }: {
   pmx: number; pmy: number;
   interactionsCompleted: Record<string, boolean>;
   nearbyInteractable: string | null;
+  npcPositions: Record<string, [number, number, number]>;
 }) {
   return (
     <svg width={MAP_W} height={MAP_H} viewBox={`0 0 ${MAP_W} ${MAP_H}`} style={{ display: "block" }}>
@@ -93,7 +95,10 @@ function MapSVGThumb({ pmx, pmy, interactionsCompleted, nearbyInteractable }: {
         );
       })}
       {CHARACTERS.map((char) => {
-        const { mx: cx, my: cy } = toMap(char.position[0], char.position[2]);
+        const livePos = npcPositions[char.id];
+        const wx = livePos ? livePos[0] : char.position[0];
+        const wz = livePos ? livePos[2] : char.position[2];
+        const { mx: cx, my: cy } = toMap(wx, wz);
         const color = CHARACTER_COLORS[char.id] ?? "#94a3b8";
         const spoken = interactionsCompleted[char.id] || interactionsCompleted[char.id + "_initial"];
         return (
@@ -169,10 +174,21 @@ function OfficeMap3D({
   nearbyInteractable: string | null;
 }) {
   const playerRef = useRef<THREE.Mesh>(null);
+  // NPC group refs — updated imperatively each frame to avoid re-render churn
+  const npcGroupRefs = useRef<Record<string, THREE.Group>>({});
   useFrame((state) => {
     if (playerRef.current) {
       const pulse = 0.85 + Math.sin(state.clock.elapsedTime * 3) * 0.15;
       playerRef.current.scale.setScalar(pulse);
+    }
+    // Update NPC group world positions live
+    for (const char of CHARACTERS) {
+      const group = npcGroupRefs.current[char.id];
+      const v = NPC_POSITIONS.get(char.id);
+      if (group && v) {
+        group.position.x = v.x;
+        group.position.z = v.z;
+      }
     }
   });
 
@@ -250,13 +266,14 @@ function OfficeMap3D({
         <meshStandardMaterial color="#5060b0" transparent opacity={0.18} roughness={0} metalness={0.1} />
       </mesh>
 
-      {/* NPC dots */}
+      {/* NPC dots — initial position from spawn data, imperatively moved each frame */}
       {CHARACTERS.map((char) => {
         const color = CHARACTER_COLORS[char.id] ?? "#94a3b8";
         const spoken = interactionsCompleted[char.id] || interactionsCompleted[char.id + "_initial"];
         const isNearby = nearbyInteractable === char.id;
         return (
-          <group key={char.id} position={[char.position[0], 0, char.position[2]]}>
+          <group key={char.id} position={[char.position[0], 0, char.position[2]]}
+            ref={(el) => { if (el) npcGroupRefs.current[char.id] = el; }}>
             {/* Glow ring */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
               <ringGeometry args={[0.42, 0.6, 16]} />
@@ -422,6 +439,22 @@ export function MiniMap() {
   const [px, , pz] = playerPosition ?? [0, 0, 0];
   const { mx: pmx, my: pmy } = toMap(px, pz);
 
+  // Live NPC positions for the 2D thumbnail (polled at 10fps)
+  const [npcPositions, setNpcPositions] = useState<Record<string, [number, number, number]>>({});
+  useEffect(() => {
+    const poll = () => {
+      const updated: Record<string, [number, number, number]> = {};
+      for (const char of CHARACTERS) {
+        const v = NPC_POSITIONS.get(char.id);
+        updated[char.id] = v ? [v.x, v.y, v.z] : [char.position[0], char.position[1], char.position[2]];
+      }
+      setNpcPositions(updated);
+    };
+    const id = setInterval(poll, 100);
+    poll(); // immediate first read
+    return () => clearInterval(id);
+  }, []);
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   // Once the 3D map has been opened at least once we keep the Canvas mounted in
   // the background (hidden via opacity + pointer-events) so the second open is
@@ -528,7 +561,8 @@ export function MiniMap() {
             </span>
           </div>
           <MapSVGThumb pmx={pmx} pmy={pmy}
-            interactionsCompleted={interactionsCompleted} nearbyInteractable={nearbyInteractable} />
+            interactionsCompleted={interactionsCompleted} nearbyInteractable={nearbyInteractable}
+            npcPositions={npcPositions} />
           <div className="px-2.5 py-1 flex items-center justify-between"
             style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
             <span style={{ fontFamily: "'Courier New',monospace", fontSize: "7px",

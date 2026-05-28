@@ -70,6 +70,8 @@ export interface CharacterDef {
   requiredStage?: IncidentStage;
   interactStage?: IncidentStage;
   speechRate?: number;
+  /** Body.rotation.y when seated at desk (radians). 0 = face +Z, Math.PI = face -Z */
+  seatFacing?: number;
 }
 
 export interface TelemetryEvent {

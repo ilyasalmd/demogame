@@ -6,6 +6,7 @@ import { useGameStore } from "@/store/gameStore";
 import { CHARACTERS, INTERACTABLE_OBJECTS } from "@/game/data";
 import { playFootstep } from "@/game/audio";
 import { NPC_POSITIONS } from "@/game/npcRegistry";
+import { mouseSensitivity } from "@/game/settings";
 
 const MOVE_SPEED = 6.0;
 const SPRINT_SPEED = 10.0;
@@ -16,14 +17,14 @@ const WALK_STEP_INTERVAL = 0.48;   // ~2 steps/sec — natural office walking pa
 const SPRINT_STEP_INTERVAL = 0.30; // ~3.3 steps/sec — brisk sprint cadence
 
 const DOOR_POSITIONS = [
-  { id: "door_eng",        x: 11,   z: 7,     label: "Engineering Sync" },
+  { id: "door_eng",        x: 11,   z: 14,    label: "Engineering Sync" },
   { id: "door_compliance", x: -2.5, z: 10,    label: "Compliance Review" },
   { id: "door_boardroom",  x: 13,   z: -10.25, label: "Boardroom" },
 ];
 
 const DOOR_COLLISION_WALLS: { doorId: string; wall: [number, number, number, number] }[] = [
   { doorId: "door_compliance", wall: [-3.25, 9.7,    -1.75, 10.1]  },
-  { doorId: "door_eng",        wall: [10.25, 6.95,   11.75, 7.25]  },
+  { doorId: "door_eng",        wall: [10.25, 14.0,   11.75, 14.3]  },
   { doorId: "door_boardroom",  wall: [12.25, -10.5,  13.75, -9.7]  },
 ];
 
@@ -154,10 +155,10 @@ export function PlayerController({ walls }: PlayerControllerProps) {
     const onMouseMove = (e: MouseEvent) => {
       if (!isPointerLocked.current) return;
       if (!useGameStore.getState().ambienceUnlocked) return;
-      cameraYawRef.current -= e.movementX * SENSITIVITY;
+      cameraYawRef.current -= e.movementX * mouseSensitivity;
       cameraPitchRef.current = Math.max(
         PITCH_MIN,
-        Math.min(PITCH_MAX, cameraPitchRef.current + e.movementY * SENSITIVITY)
+        Math.min(PITCH_MAX, cameraPitchRef.current + e.movementY * mouseSensitivity)
       );
     };
 

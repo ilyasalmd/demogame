@@ -1,8 +1,9 @@
 "use client";
-import { useRef, useMemo, Suspense } from "react";
+import { useRef, useMemo, useState, Suspense } from "react";
 import { useFrame, useLoader } from "@react-three/fiber";
 import { Text, useTexture, Detailed, useFBX } from "@react-three/drei";
 import * as THREE from "three";
+import { useGameStore } from "@/store/gameStore";
 import { OBJLoader } from "three/addons/loaders/OBJLoader";
 import { MTLLoader } from "three/addons/loaders/MTLLoader";
 
@@ -461,11 +462,10 @@ function SofaFBXInner({ position, rotation = 0 }: {
     return c;
   }, [fbx, tex1, tex2]);
 
-  // Scale 0.008 assumes FBX units ≈ 1 mm (sofa ≈ 220 mm → 1.76 m wide).
-  // If the sofa looks too small bump to 0.010; too large drop to 0.006.
+  // Scale 0.013 → sofa ≈ 2.86 m wide — visually substantial for lounge clusters.
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      <primitive object={clone} scale={[0.008, 0.008, 0.008]} position={[0, 0, 0]} />
+      <primitive object={clone} scale={[0.013, 0.013, 0.013]} position={[0, 0, 0]} />
     </group>
   );
 }
@@ -804,6 +804,105 @@ function Whiteboard({ position, rotation = 0, text }: {
         <meshStandardMaterial color="#2a2a5a" metalness={0.5} roughness={0.4} />
       </mesh>
       <WhiteboardCanvasContent label={label} />
+    </group>
+  );
+}
+
+// ── Q4 Client Model poster — lazy-loaded when player is within 8 m ───────────
+
+function drawQ4ClientPoster(g: CanvasRenderingContext2D, W: number, H: number) {
+  // Background — deep navy
+  g.fillStyle = "#0a0e1a"; g.fillRect(0, 0, W, H);
+  // Top accent bar
+  const grad = g.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, "#f59e0b"); grad.addColorStop(1, "#b45309");
+  g.fillStyle = grad; g.fillRect(0, 0, W, 8);
+  // Logo row
+  g.fillStyle = "#f59e0b"; g.font = "bold 22px Arial"; g.textAlign = "left"; g.textBaseline = "top";
+  g.fillText("AI OA LTD", 32, 28);
+  g.fillStyle = "#64748b"; g.font = "16px Arial"; g.textAlign = "right";
+  g.fillText("CONFIDENTIAL — DRAFT", W - 32, 30);
+  // Divider
+  g.strokeStyle = "#1e293b"; g.lineWidth = 1.5; g.beginPath(); g.moveTo(32, 68); g.lineTo(W - 32, 68); g.stroke();
+  // Title
+  g.fillStyle = "#f8fafc"; g.font = "bold 52px Arial"; g.textAlign = "center"; g.textBaseline = "top";
+  g.fillText("Q4 CLIENT MODEL", W / 2, 86);
+  g.fillStyle = "#94a3b8"; g.font = "24px Arial";
+  g.fillText("CREDIT RISK ASSESSMENT ENGINE v2.4", W / 2, 150);
+  // Key metric
+  g.fillStyle = "#22c55e"; g.font = "bold 90px Arial"; g.textBaseline = "top";
+  g.fillText("94.2%", W / 2, 192);
+  g.fillStyle = "#86efac"; g.font = "18px Arial";
+  g.fillText("Validation Accuracy  ▲ +12.1 pp vs baseline", W / 2, 298);
+  // Divider
+  g.strokeStyle = "#1e293b"; g.beginPath(); g.moveTo(32, 332); g.lineTo(W - 32, 332); g.stroke();
+  // Metrics table
+  const rows = [
+    ["AUC-ROC",         "0.974",  "+0.063"],
+    ["Precision @ 0.5", "91.8%",  "+8.4 pp"],
+    ["Recall @ 0.5",    "88.6%",  "+7.2 pp"],
+    ["F1 Score",        "90.2",   "+7.8"],
+  ];
+  g.textBaseline = "top";
+  rows.forEach(([label, val, delta], i) => {
+    const y = 354 + i * 62;
+    g.fillStyle = i % 2 === 0 ? "#0f172a" : "#111827"; g.fillRect(32, y, W - 64, 56);
+    g.fillStyle = "#cbd5e1"; g.font = "20px Arial"; g.textAlign = "left"; g.fillText(label, 50, y + 16);
+    g.fillStyle = "#f8fafc"; g.font = "bold 22px Arial"; g.textAlign = "center"; g.fillText(val, W / 2, y + 16);
+    g.fillStyle = "#22c55e"; g.font = "bold 20px Arial"; g.textAlign = "right"; g.fillText(delta, W - 50, y + 16);
+  });
+  // Warning banner
+  g.fillStyle = "#451a03"; g.fillRect(32, H - 120, W - 64, 80);
+  g.strokeStyle = "#f59e0b55"; g.lineWidth = 1.5; g.strokeRect(32, H - 120, W - 64, 80);
+  g.fillStyle = "#fef3c7"; g.font = "bold 18px Arial"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText("⚠  DATA QUALITY FLAG — 1,460 DUPLICATE ROWS PENDING", W / 2, H - 80);
+  g.fillStyle = "#fcd34d"; g.font = "16px Arial";
+  g.fillText("Do not use in final presentation without sign-off  ·  Theo Marsh / Priya Nair", W / 2, H - 56);
+  // Bottom bar
+  g.fillStyle = grad; g.fillRect(0, H - 8, W, 8);
+}
+
+function Q4ClientPoster({ position, rotation = 0 }: {
+  position: [number, number, number]; rotation?: number;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const texture = useMemo(() => {
+    if (!loaded || typeof document === "undefined") return null;
+    const W = 512, H = 768;
+    const c = document.createElement("canvas"); c.width = W; c.height = H;
+    const g = c.getContext("2d")!;
+    drawQ4ClientPoster(g, W, H);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, [loaded]);
+
+  useFrame(() => {
+    if (loaded) return;
+    const { playerPosition } = useGameStore.getState();
+    const dx = playerPosition[0] - position[0];
+    const dz = playerPosition[2] - position[2];
+    if (dx * dx + dz * dz < 64) setLoaded(true); // 8 units
+  });
+
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      {/* Frame */}
+      <mesh>
+        <boxGeometry args={[0.05, 1.65, 1.05]} />
+        <meshStandardMaterial color="#1a1a2a" roughness={0.6} metalness={0.2} />
+      </mesh>
+      {/* Poster surface */}
+      <mesh position={[0.03, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[1.0, 1.58]} />
+        <meshStandardMaterial
+          map={texture ?? undefined}
+          color={texture ? "#ffffff" : "#0f172a"}
+          roughness={0.75} metalness={0}
+          emissive={texture ? "#000000" : "#0f172a"}
+          emissiveIntensity={texture ? 0 : 0.06}
+        />
+      </mesh>
     </group>
   );
 }
@@ -1683,8 +1782,8 @@ function SmallMeetingRoom({ cx, cz, label = "HUDDLE" }: { cx: number; cz: number
           position={[cx + Math.cos(angle) * 1.3, 0, cz + Math.sin(angle) * 1.3]}
           rotation={angle + Math.PI} />
       ))}
-      {/* Small screen at back of room */}
-      <Monitor position={[cx, 1.55, cz - 1.4]} screenColor="#6366f1" active label={label} size={1.2} />
+      {/* Small screen at back of room — y=0.78 sits on the table top */}
+      <Monitor position={[cx, 0.78, cz - 1.4]} screenColor="#6366f1" active label={label} size={1.2} />
     </>
   );
 }
@@ -1765,13 +1864,17 @@ export function OfficeProps() {
       ═══════════════════════════════════════ */}
       <LobbyArea />
 
-      {/* ── LOBBY SOFAS — waiting area to the left of the reception desk ── */}
-      {/* South cluster (visitor's left as they face the reception) */}
-      <Sofa position={[-22.5, 0, -4.5]} rotation={-Math.PI / 2} />
-      <Sofa position={[-22.5, 0, -2.8]} rotation={-Math.PI / 2} />
-      <LobbyTable position={[-22.5, 0, -3.65]} />
-      {/* Single sofa on the north side for balance */}
-      <Sofa position={[-22.5, 0, 2.5]} rotation={-Math.PI / 2} />
+      {/* ── SW CORNER — U-shape sofa cluster (south-west glass corner) ── */}
+      <Sofa position={[-17, 0, -17]} rotation={0} />
+      <Sofa position={[-20, 0, -15]} rotation={Math.PI / 2} />
+      <Sofa position={[-17, 0, -13]} rotation={Math.PI} />
+      <LobbyTable position={[-17, 0, -15]} />
+
+      {/* ── NW CORNER — U-shape sofa cluster (north-west glass corner) ── */}
+      <Sofa position={[-19, 0, 13.5]} rotation={0} />
+      <Sofa position={[-21, 0, 15.5]} rotation={Math.PI / 2} />
+      <Sofa position={[-19, 0, 17.5]} rotation={Math.PI} />
+      <LobbyTable position={[-19, 0, 15.5]} />
 
       {/* ═══════════════════════════════════════
           TWO EXTRA ANALYTICS ROWS  (between south whiteboard wall and main analytics pod)
@@ -1816,7 +1919,7 @@ export function OfficeProps() {
       <StandingDesk position={[13.5, 0, 4]} rotation={Math.PI / 2} />
       <Monitor position={[13.5, 1.13, 3.5]} screenColor="#0ea5e9" active label="BUILD STATUS" />
       <Keyboard position={[13.5, 1.07, 3.7]} rotation={Math.PI / 2} />
-      <Whiteboard position={[9, 1.8, -9.73]} rotation={-Math.PI / 2} text="ARCHITECTURE" />
+      <Whiteboard position={[10.5, 1.8, -9.3]} rotation={-Math.PI / 2} text="ARCHITECTURE" />
 
       {/* ═══════════════════════════════════════
           HUDDLE ROOM A  (~[11, 0, 10.5])
@@ -1855,10 +1958,7 @@ export function OfficeProps() {
       ═══════════════════════════════════════ */}
       <CoffeeStation position={[-10, 0, 14.5]} />
       <LoungeArea cx={-15} cz={14} />
-      {/* Sofa pair near the coffee station — facing each other across a table */}
-      <Sofa position={[-12.5, 0, 12]} rotation={Math.PI / 2} />
-      <Sofa position={[-12.5, 0, 16]} rotation={-Math.PI / 2} />
-      <LobbyTable position={[-12.5, 0, 14]} />
+      {/* Breakout sofas removed — seating clusters moved to SW/NW glass corners */}
 
       {/* ═══════════════════════════════════════
           EXECUTIVE SUITE  (Oliver/Amara ~[13-20, 0, -2 to -8])
@@ -1879,6 +1979,8 @@ export function OfficeProps() {
       <Desk position={[18.5, 0, -7.5]} rotation={Math.PI} />
       <Monitor position={[16, 0.83, -7.05]} screenColor="#ec4899" active rotation={Math.PI} />
       <Monitor position={[18.5, 0.83, -7.05]} screenColor="#f59e0b" active label="AMARA" rotation={Math.PI} />
+      {/* Q4 client model poster — east glass wall, faces west into exec suite */}
+      <Q4ClientPoster position={[24.2, 1.85, -5]} rotation={-Math.PI / 2} />
 
       {/* ═══════════════════════════════════════
           CENTRAL OPEN PLAN — MID OFFICE

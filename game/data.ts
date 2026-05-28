@@ -7,10 +7,11 @@ export const CHARACTERS: CharacterDef[] = [
     role: "Data Scientist",
     color: "#6366f1",
     skinColor: "#f3c5a0",
-    position: [2, 0, -10],
+    position: [1.5, 0, -8.2],   // analytics front row chair (x=1.5, z=desk-9 + 0.8)
     floor: 0,
     interactStage: "meet_maya",
     speechRate: 1.05,
+    seatFacing: Math.PI,         // chair rotation=Math.PI → faces south (-Z) toward monitors
   },
   {
     id: "theo",
@@ -18,10 +19,11 @@ export const CHARACTERS: CharacterDef[] = [
     role: "Engineering Lead",
     color: "#0ea5e9",
     skinColor: "#d4a574",
-    position: [9, 0, 4],
+    position: [9, 0, 0.4],      // engineering pod row-0 col-1 chair (z=1.5-1.1)
     floor: 0,
     interactStage: "speak_to_theo",
     speechRate: 0.88,
+    seatFacing: 0,               // chair rotation=0 → faces north (+Z) toward monitors
   },
   {
     id: "oliver",
@@ -29,10 +31,11 @@ export const CHARACTERS: CharacterDef[] = [
     role: "Sales Director",
     color: "#f59e0b",
     skinColor: "#fdbcb4",
-    position: [13, 0, 2],
+    position: [20.5, 0, -4.2],  // exec single-desk chair (pos [20.5,0,-4.2] rotation=Math.PI)
     floor: 0,
     interactStage: "commercial_pressure",
     speechRate: 1.15,
+    seatFacing: Math.PI,         // chair rotation=Math.PI → faces south (-Z)
   },
   {
     id: "priya",
@@ -40,10 +43,11 @@ export const CHARACTERS: CharacterDef[] = [
     role: "Compliance Officer",
     color: "#10b981",
     skinColor: "#c8a882",
-    position: [-2, 0, 12],
+    position: [-0.5, 0, 13.8],  // compliance pod right desk chair
     floor: 0,
     interactStage: "compliance_check",
     speechRate: 0.92,
+    seatFacing: Math.PI,         // chair rotation=Math.PI → faces south (-Z)
   },
   {
     id: "amara",
@@ -51,10 +55,11 @@ export const CHARACTERS: CharacterDef[] = [
     role: "Chief of Staff",
     color: "#ec4899",
     skinColor: "#8d5524",
-    position: [18, 0, -8],
+    position: [16, 0, -7],      // exec south-row chair at [16,0,-7]
     floor: 0,
     interactStage: "final_recommendation",
     speechRate: 0.95,
+    seatFacing: Math.PI,         // face south toward the monitor bank
   },
 ];
 
@@ -108,9 +113,8 @@ export const BACKGROUND_NPCS = [
   // Row 1: chairs z=6.6, face south
   { id: "bg30", position: [-9.6, 0, 6.6]   as [number,number,number], facing: Math.PI, color: "#374151", skinColor: "#c8a882" },
   { id: "bg31", position: [-7.4, 0, 6.6]   as [number,number,number], facing: Math.PI, color: "#64748b", skinColor: "#8d5524" },
-  // ── Compliance pod ──
+  // ── Compliance pod (bg34 at left desk; Priya now occupies right desk [-0.5, 0, 13.8]) ──
   { id: "bg34", position: [-3,   0, 13.8]  as [number,number,number], facing: Math.PI, color: "#64748b", skinColor: "#d4a574" },
-  { id: "bg35", position: [-0.5, 0, 13.8]  as [number,number,number], facing: Math.PI, color: "#4f46e5", skinColor: "#c8a882" },
   // ── Extra row A (DeskPod cz=-14, chairs at z=-15.1, face north toward monitors)
   { id: "bg40", position: [-2.2, 0, -15.1] as [number,number,number], facing: 0, color: "#6366f1", skinColor: "#fdbcb4", chatLine: "That dedupe script's been running since half seven" },
   { id: "bg41", position: [0,   0, -15.1] as [number,number,number], facing: 0, color: "#10b981", skinColor: "#d4a574", isFemale: true, chatLine: "Ninety-four percent accuracy overnight — yeah right" },

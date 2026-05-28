@@ -305,21 +305,22 @@ function ArticulatedBody({ skinColor, outfit, hair, watchColor, headRef, leftArm
         <boxGeometry args={[0.092, 0.020, 0.022]} />
         <meshStandardMaterial color={skinColor} roughness={0.55} />
       </mesh>
-      <mesh position={[-0.082, 1.93, 0.192]}>
-        <sphereGeometry args={[0.046, 6, 5]} />
-        <meshStandardMaterial color="#f2f2f6" roughness={0.22} />
+      {/* Eyes — smaller almond-shaped sclera, iris/pupil */}
+      <mesh position={[-0.074, 1.932, 0.196]} scale={[1.05, 0.72, 0.55]}>
+        <sphereGeometry args={[0.028, 8, 6]} />
+        <meshStandardMaterial color="#e8e8f2" roughness={0.20} />
       </mesh>
-      <mesh position={[0.082, 1.93, 0.192]}>
-        <sphereGeometry args={[0.046, 6, 5]} />
-        <meshStandardMaterial color="#f2f2f6" roughness={0.22} />
+      <mesh position={[0.074, 1.932, 0.196]} scale={[1.05, 0.72, 0.55]}>
+        <sphereGeometry args={[0.028, 8, 6]} />
+        <meshStandardMaterial color="#e8e8f2" roughness={0.20} />
       </mesh>
-      <mesh position={[-0.082, 1.93, 0.214]}>
-        <sphereGeometry args={[0.029, 5, 4]} />
-        <meshStandardMaterial color="#080810" roughness={0.18} />
+      <mesh position={[-0.074, 1.932, 0.214]} scale={[0.62, 0.62, 0.38]}>
+        <sphereGeometry args={[0.020, 7, 5]} />
+        <meshStandardMaterial color="#0e0808" roughness={0.15} />
       </mesh>
-      <mesh position={[0.082, 1.93, 0.214]}>
-        <sphereGeometry args={[0.029, 5, 4]} />
-        <meshStandardMaterial color="#080810" roughness={0.18} />
+      <mesh position={[0.074, 1.932, 0.214]} scale={[0.62, 0.62, 0.38]}>
+        <sphereGeometry args={[0.020, 7, 5]} />
+        <meshStandardMaterial color="#0e0808" roughness={0.15} />
       </mesh>
 
       <HairMesh style={hair.style} color={hair.color} headY={1.88} />
@@ -461,6 +462,12 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
         const blockedZ = checkNPCWall(currentPos.current.x, currentPos.current.z + mz);
         if (!blockedX) currentPos.current.x += mx;
         if (!blockedZ) currentPos.current.z += mz;
+        // Preemptive look-ahead: check 0.9 units ahead and start steering before impact
+        const LOOK = 0.9;
+        const lookBlocked = checkNPCWall(
+          currentPos.current.x + sdx * LOOK,
+          currentPos.current.z + sdz * LOOK
+        );
         // Both axes blocked → increment stuck timer, then rotate steer angle 45°
         if (blockedX && blockedZ) {
           stuckTimerRef.current += delta;
@@ -474,6 +481,10 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
               wanderTarget.current.set(zone[0], 0, zone[2]);
             }
           }
+        } else if (lookBlocked && Math.abs(steerAngleRef.current) < 0.18) {
+          // Preemptive: obstacle ahead within look-ahead distance → begin gradual nudge
+          steerAngleRef.current += Math.PI / 8 * delta * 4;
+          stuckTimerRef.current = 0;
         } else {
           // Moving freely — reset stuck timer and decay steering back to zero
           stuckTimerRef.current = 0;
@@ -503,6 +514,26 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
         if (!checkNPCWall(currentPos.current.x, nz)) currentPos.current.z = nz;
       }
     }
+
+    // ── Player repulsion — treat player as a soft obstacle ──────────────────
+    if (isMoving) {
+      const pdx = currentPos.current.x - playerPosition[0];
+      const pdz = currentPos.current.z - playerPosition[2];
+      const playerDistSq = pdx * pdx + pdz * pdz;
+      const PLAYER_R = 0.75;
+      if (playerDistSq < PLAYER_R * PLAYER_R && playerDistSq > 0.0001) {
+        const pd = Math.sqrt(playerDistSq);
+        const overlap = PLAYER_R - pd;
+        const rx = (pdx / pd) * overlap * 0.6;
+        const rz = (pdz / pd) * overlap * 0.6;
+        if (!checkNPCWall(currentPos.current.x + rx, currentPos.current.z)) currentPos.current.x += rx;
+        if (!checkNPCWall(currentPos.current.x, currentPos.current.z + rz)) currentPos.current.z += rz;
+      }
+    }
+
+    // ── Hard office boundary — never leave the building ──────────────────────
+    currentPos.current.x = Math.max(-18.0, Math.min(23.0, currentPos.current.x));
+    currentPos.current.z = Math.max(-18.5, Math.min(18.5, currentPos.current.z));
 
     // ── Publish live position to shared registry (read by PlayerController) ──
     let reg = NPC_POSITIONS.get(character.id);
@@ -572,6 +603,22 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
         bodyRef.current.rotation.y =
           (bodyRef.current.rotation.y || 0) + df * Math.min(1, 6 * delta);
       }
+    }
+
+    // ── Snap to desk direction when seated ───────────────────────────────────
+    // When seated and not walking, lerp body to face the character's seatFacing.
+    if (
+      wanderStateRef.current === "sitting" &&
+      !isActivelyWalking &&
+      !shouldFreeze &&
+      character.seatFacing !== undefined &&
+      bodyRef.current
+    ) {
+      let df = character.seatFacing - (bodyRef.current.rotation.y || 0);
+      while (df > Math.PI)  df -= Math.PI * 2;
+      while (df < -Math.PI) df += Math.PI * 2;
+      bodyRef.current.rotation.y =
+        (bodyRef.current.rotation.y || 0) + df * Math.min(1, 2.5 * delta);
     }
 
     // ── Arm swing ─────────────────────────────────────────────────────────────
@@ -678,8 +725,14 @@ export function NPCCharacter({ character, isNearby }: NPCCharacterProps) {
         </Billboard>
       )}
 
-      {/* Interaction ring */}
-      {isNearby && <InteractionRing color={character.color} />}
+      {/* Interaction glow — subtle floor disc, no spinning ring */}
+      {isNearby && (
+        <mesh position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.40, 20]} />
+          <meshStandardMaterial color={character.color} emissive={character.color}
+            emissiveIntensity={0.6} transparent opacity={0.28} />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -727,27 +780,3 @@ function SpeechBubble({ text, color }: { text: string; color: string }) {
   );
 }
 
-function InteractionRing({ color }: { color: string }) {
-  const ringRef = useRef<THREE.Mesh>(null);
-
-  useFrame((state) => {
-    if (ringRef.current) {
-      ringRef.current.rotation.y += 0.025;
-      const scale = 1 + Math.sin(state.clock.elapsedTime * 4.5) * 0.07;
-      ringRef.current.scale.set(scale, 1, scale);
-    }
-  });
-
-  return (
-    <mesh ref={ringRef} position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[0.38, 0.44, 28]} />
-      <meshStandardMaterial
-        color={color}
-        emissive={color}
-        emissiveIntensity={1.2}
-        transparent
-        opacity={0.75}
-      />
-    </mesh>
-  );
-}

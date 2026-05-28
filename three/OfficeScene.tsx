@@ -796,7 +796,7 @@ function HuddleRoomA() {
   const cx = 11, cz = 10.5;
   return (
     <group>
-      <GlassRoom cx={cx} cz={cz} w={6} d={7} label="ENGINEERING SYNC" color="#0ea5e9" doorId="door_eng" />
+      <GlassRoom cx={cx} cz={cz} w={6} d={7} label="ENGINEERING SYNC" color="#0ea5e9" doorId="door_eng" doorSide="north" />
     </group>
   );
 }

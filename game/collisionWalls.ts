@@ -19,12 +19,12 @@ export const COLLISION_WALLS: number[][] = [
   [18, -10.5, 18.3, -19.5], // east wall
   // south wall = outer boundary at z=-19.5
 
-  // ── Huddle room A — west / north / east / south walls with door ──
+  // ── Huddle room A — west / north / east / south walls (door now on NORTH face) ──
   [7.7, 7.2, 8, 14],
-  [7.7, 14, 14, 14.3],
+  [7.7, 14.0, 10.25, 14.3],   // north-west panel (door gap: x 10.25–11.75)
+  [11.75, 14.0, 14.3, 14.3],  // north-east panel
   [14, 7.2, 14.3, 14],
-  [7.7, 6.95, 10.25, 7.25],   // south-west panel (door gap: x 10.25–11.75)
-  [11.75, 6.95, 14.3, 7.25],  // south-east panel
+  [7.7, 6.95, 14.3, 7.25],    // south wall — solid (no door)
 
   // ── Huddle room B — west / north / east / south walls with door ──
   [-7, 9.7, -7.3, 18],       // west wall
@@ -129,16 +129,17 @@ export const COLLISION_WALLS: number[][] = [
   [2.9, 5.9, 7.1, 7.05],   // row z=6
   [2.9, 9.9, 7.1, 11.05],  // row z=10
 
-  // ── Lobby sofas (south cluster x=-22.5, z=-4.5 and z=-2.8) ──────
-  [-23.6, -5.2, -21.4, -3.8],   // south sofa A
-  [-23.6, -3.5, -21.4, -2.1],   // south sofa B
+  // ── SW corner U-shape sofa cluster ───────────────────────────────
+  [-17.9, -17.5, -16.1, -16.5],  // south sofa  (pos [-17,-17] rot=0)
+  [-20.5, -15.9, -19.5, -14.1],  // west sofa   (pos [-20,-15] rot=π/2)
+  [-17.9, -13.5, -16.1, -12.5],  // north sofa  (pos [-17,-13] rot=π)
+  [-17.5, -15.5, -16.5, -14.5],  // center table
 
-  // ── Lobby sofa (north, x=-22.5, z=2.5) ──────────────────────────
-  [-23.6, 1.8, -21.4, 3.2],
-
-  // ── Breakout sofas (x=-12.5, z=12 and z=16) ─────────────────────
-  [-13.5, 11.2, -11.5, 12.8],
-  [-13.5, 15.2, -11.5, 16.8],
+  // ── NW corner U-shape sofa cluster ───────────────────────────────
+  [-19.9, 13.0, -18.1, 14.0],    // south sofa  (pos [-19,13.5] rot=0)
+  [-21.5, 14.6, -20.5, 16.4],    // west sofa   (pos [-21,15.5] rot=π/2)
+  [-19.9, 17.0, -18.1, 18.0],    // north sofa  (pos [-19,17.5] rot=π)
+  [-19.5, 15.0, -18.5, 16.0],    // center table
 
   // ── Server-room-adjacent sofas (z=7.5, x=16 and x=18.5) ─────────
   [15.0, 6.8, 17.0, 8.2],

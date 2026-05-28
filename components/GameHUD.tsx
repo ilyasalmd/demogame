@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "@/store/gameStore";
+import { mouseSensitivity, setMouseSensitivity } from "@/game/settings";
 
 export function GameHUD() {
   const {
@@ -27,6 +28,7 @@ export function GameHUD() {
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showControls, setShowControls] = useState(true);
+  const [sensitivity, setSensitivity] = useState(mouseSensitivity);
 
   const isReceptionistSpeaking = !!(activeDialogue && dialogueCharacter === "receptionist");
 
@@ -170,6 +172,33 @@ export function GameHUD() {
           >
             V · {cameraMode === "third" ? "3rd" : "1st"} Person
           </button>
+        </div>
+
+        {/* Mouse sensitivity slider */}
+        <div
+          className="flex flex-col gap-1 px-2 py-1.5 rounded-lg"
+          style={{ background: "rgba(5,5,8,0.85)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-mono" style={{ color: "#64748b" }}>Mouse Speed</span>
+            <span className="text-xs font-mono" style={{ color: "#94a3b8" }}>
+              {Math.round(sensitivity * 10000) / 10}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={10}
+            max={200}
+            step={1}
+            value={Math.round(sensitivity * 10000)}
+            onChange={(e) => {
+              const v = Number(e.target.value) / 10000;
+              setSensitivity(v);
+              setMouseSensitivity(v);
+            }}
+            className="w-full cursor-pointer"
+            style={{ accentColor: "#6366f1", height: "4px" }}
+          />
         </div>
       </div>
 
