@@ -1,5 +1,30 @@
 "use client";
 
+// ── Static pre-baked audio manifest ──────────────────────────────────────────
+// manifest.json maps "characterId|text" → "/audio/[file].wav"
+// Generated once on Windows by: node scripts/prebake-audio.mjs
+// Committed to the repo so all platforms use the exact same voices.
+
+let staticManifest: Record<string, string> | null = null;
+let _manifestPromise: Promise<Record<string, string>> | null = null;
+
+function loadManifest(): Promise<Record<string, string>> {
+  if (staticManifest !== null) return Promise.resolve(staticManifest);
+  if (_manifestPromise) return _manifestPromise;
+  _manifestPromise = fetch("/audio/manifest.json")
+    .then(r => (r.ok ? r.json() : {}))
+    .catch(() => ({}))
+    .then((data: Record<string, string>) => {
+      staticManifest = data;
+      _manifestPromise = null;
+      return data;
+    });
+  return _manifestPromise;
+}
+
+// ── Current HTMLAudioElement (so we can cancel it on stopSpeech) ─────────────
+let currentStaticAudio: HTMLAudioElement | null = null;
+
 export interface VoiceConfig {
   lang: string;
   pitch: number;
@@ -280,32 +305,71 @@ export function speakLine(
   onEnd?: () => void,
 ): void {
   if (characterId === "system" || characterId === "dashboard") return;
-  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  if (typeof window === "undefined") return;
 
+  // Cancel any in-flight static audio
+  if (currentStaticAudio) {
+    currentStaticAudio.pause();
+    currentStaticAudio = null;
+  }
   stopKeepAlive();
-  window.speechSynthesis.cancel();
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
 
   const myId = ++currentSpeakId;
 
-  // Always defer via setTimeout(0) — even when voices are already cached.
-  // This lets React StrictMode's double-invoke land both calls synchronously,
-  // then only the last one's timer fires (_doSpeak called exactly once).
-  const invoke = () => {
-    if (currentSpeakId !== myId) return; // superseded by a newer speakLine call
+  const fallbackToWebSpeech = () => {
+    if (currentSpeakId !== myId) return;
+    if (!window.speechSynthesis) { onEnd?.(); return; }
     if (cachedVoices.length > 0) {
       _doSpeak(text, characterId, rateOverride, onStart, onEnd);
     } else {
       getVoices().then(() => {
-        if (currentSpeakId !== myId) return; // check again after async voice load
+        if (currentSpeakId !== myId) return;
         _doSpeak(text, characterId, rateOverride, onStart, onEnd);
       });
     }
   };
 
-  setTimeout(invoke, 0);
+  // Try static pre-baked audio first — works on all platforms identically
+  const invoke = async () => {
+    if (currentSpeakId !== myId) return;
+    const manifest = await loadManifest();
+    if (currentSpeakId !== myId) return;
+
+    const url = manifest[`${characterId}|${text}`];
+    if (url) {
+      const audio = new Audio(url);
+      currentStaticAudio = audio;
+      audio.onended = () => {
+        if (currentStaticAudio === audio) currentStaticAudio = null;
+        onEnd?.();
+      };
+      audio.onerror = () => {
+        if (currentStaticAudio === audio) currentStaticAudio = null;
+        fallbackToWebSpeech();
+      };
+      try {
+        await audio.play();
+        onStart?.();
+        return; // playing from static file — done
+      } catch {
+        currentStaticAudio = null;
+        // Auto-play blocked or file missing — fall through to Web Speech
+      }
+    }
+
+    // No static file found — use Web Speech API
+    fallbackToWebSpeech();
+  };
+
+  setTimeout(() => { invoke(); }, 0);
 }
 
 export function stopSpeech() {
+  if (currentStaticAudio) {
+    currentStaticAudio.pause();
+    currentStaticAudio = null;
+  }
   stopKeepAlive();
   if (typeof window !== "undefined" && window.speechSynthesis) {
     window.speechSynthesis.cancel();
@@ -313,8 +377,11 @@ export function stopSpeech() {
 }
 
 export async function initVoices() {
-  if (typeof window === "undefined" || !window.speechSynthesis) return;
-  await getVoices();
+  if (typeof window === "undefined") return;
+  // Pre-load the manifest and voices in parallel
+  const tasks: Promise<unknown>[] = [loadManifest()];
+  if (window.speechSynthesis) tasks.push(getVoices());
+  await Promise.all(tasks);
 }
 
 export function isAudioPlaying(): boolean {
