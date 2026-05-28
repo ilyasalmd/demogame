@@ -388,6 +388,118 @@ function Chair({ position, rotation = 0 }: { position: [number, number, number];
   );
 }
 
+// ── Sofa: FBX with procedural fallback ──────────────────────────────────────
+
+function SofaProcedural({ position, rotation = 0 }: {
+  position: [number, number, number]; rotation?: number;
+}) {
+  const foam  = "#1e1a38"; // deep midnight-blue fabric
+  const frame = "#13102a";
+  const legCol = "#0e0a1a";
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      {/* Seat cushion */}
+      <mesh position={[0, 0.34, 0]}>
+        <boxGeometry args={[2.0, 0.20, 0.90]} />
+        <meshStandardMaterial color={foam} roughness={0.85} />
+      </mesh>
+      {/* Back panel */}
+      <mesh position={[0, 0.78, -0.38]}>
+        <boxGeometry args={[2.0, 0.78, 0.14]} />
+        <meshStandardMaterial color={foam} roughness={0.85} />
+      </mesh>
+      {/* Top back roll */}
+      <mesh position={[0, 1.16, -0.35]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.07, 0.07, 1.98, 8]} />
+        <meshStandardMaterial color={frame} roughness={0.7} />
+      </mesh>
+      {/* Left arm */}
+      <mesh position={[-0.93, 0.55, 0]}>
+        <boxGeometry args={[0.16, 0.44, 0.90]} />
+        <meshStandardMaterial color={foam} roughness={0.85} />
+      </mesh>
+      {/* Right arm */}
+      <mesh position={[0.93, 0.55, 0]}>
+        <boxGeometry args={[0.16, 0.44, 0.90]} />
+        <meshStandardMaterial color={foam} roughness={0.85} />
+      </mesh>
+      {/* Legs */}
+      {([[-0.85, -0.35], [0.85, -0.35], [-0.85, 0.35], [0.85, 0.35]] as [number,number][]).map(([lx, lz], i) => (
+        <mesh key={i} position={[lx, 0.1, lz]}>
+          <boxGeometry args={[0.08, 0.2, 0.08]} />
+          <meshStandardMaterial color={legCol} roughness={0.45} metalness={0.4} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function SofaFBXInner({ position, rotation = 0 }: {
+  position: [number, number, number]; rotation?: number;
+}) {
+  const fbx  = useFBX("/models/sofa/koltuk2.fbx");
+  const tex1 = useTexture("/models/sofa/Koltuk1.png") as THREE.Texture;
+  const tex2 = useTexture("/models/sofa/Koltuk2.png") as THREE.Texture;
+  tex1.colorSpace = THREE.SRGBColorSpace;
+  tex2.colorSpace = THREE.SRGBColorSpace;
+
+  const clone = useMemo(() => {
+    const c = fbx.clone(true);
+    let meshIdx = 0;
+    c.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        (child as THREE.Mesh).material = new THREE.MeshStandardMaterial({
+          map:      meshIdx === 0 ? tex1 : tex2,
+          roughness: 0.78,
+          metalness: 0.05,
+          color: "#cec6b6",
+        });
+        (child as THREE.Mesh).castShadow = true;
+        meshIdx++;
+      }
+    });
+    return c;
+  }, [fbx, tex1, tex2]);
+
+  // Scale 0.008 assumes FBX units ≈ 1 mm (sofa ≈ 220 mm → 1.76 m wide).
+  // If the sofa looks too small bump to 0.010; too large drop to 0.006.
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      <primitive object={clone} scale={[0.008, 0.008, 0.008]} position={[0, 0, 0]} />
+    </group>
+  );
+}
+
+function Sofa({ position, rotation = 0 }: {
+  position: [number, number, number]; rotation?: number;
+}) {
+  return (
+    <Suspense fallback={<SofaProcedural position={position} rotation={rotation} />}>
+      <SofaFBXInner position={position} rotation={rotation} />
+    </Suspense>
+  );
+}
+
+// Small lobby coffee table (for sofa clusters)
+function LobbyTable({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      <mesh position={[0, 0.38, 0]}>
+        <boxGeometry args={[0.7, 0.05, 0.45]} />
+        <meshStandardMaterial color="#101020" roughness={0.3} metalness={0.3} />
+      </mesh>
+      <mesh position={[0, 0.19, 0]}>
+        <cylinderGeometry args={[0.03, 0.03, 0.38, 6]} />
+        <meshStandardMaterial color="#252540" roughness={0.5} metalness={0.5} />
+      </mesh>
+      <mesh position={[0, 0.02, 0]}>
+        <cylinderGeometry args={[0.22, 0.24, 0.03, 6]} />
+        <meshStandardMaterial color="#1a1a30" roughness={0.5} metalness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
 function MeetingChair({ position, rotation = 0 }: { position: [number, number, number]; rotation?: number }) {
   return (
     <group position={position} rotation={[0, rotation, 0]}>
@@ -1653,6 +1765,14 @@ export function OfficeProps() {
       ═══════════════════════════════════════ */}
       <LobbyArea />
 
+      {/* ── LOBBY SOFAS — waiting area to the left of the reception desk ── */}
+      {/* South cluster (visitor's left as they face the reception) */}
+      <Sofa position={[-22.5, 0, -4.5]} rotation={-Math.PI / 2} />
+      <Sofa position={[-22.5, 0, -2.8]} rotation={-Math.PI / 2} />
+      <LobbyTable position={[-22.5, 0, -3.65]} />
+      {/* Single sofa on the north side for balance */}
+      <Sofa position={[-22.5, 0, 2.5]} rotation={-Math.PI / 2} />
+
       {/* ═══════════════════════════════════════
           TWO EXTRA ANALYTICS ROWS  (between south whiteboard wall and main analytics pod)
           Row A: desks z=-14, chairs z=-15.1 | Row B: desks z=-17, chairs z=-18.1
@@ -1745,6 +1865,10 @@ export function OfficeProps() {
       ═══════════════════════════════════════ */}
       <CoffeeStation position={[-10, 0, 14.5]} />
       <LoungeArea cx={-15} cz={14} />
+      {/* Sofa pair near the coffee station — facing each other across a table */}
+      <Sofa position={[-12.5, 0, 12]} rotation={Math.PI / 2} />
+      <Sofa position={[-12.5, 0, 16]} rotation={-Math.PI / 2} />
+      <LobbyTable position={[-12.5, 0, 14]} />
 
       {/* ═══════════════════════════════════════
           EXECUTIVE SUITE  (Oliver/Amara ~[13-20, 0, -2 to -8])
@@ -1777,6 +1901,11 @@ export function OfficeProps() {
       {/* Analytics west extension */}
       <PrinterStation position={[-4, 0, 0.5]} />
       <PrinterStation position={[5.5, 0, -6.5]} />
+
+      {/* ── Sofas near server room — informal seating outside NE corner ── */}
+      <Sofa position={[16, 0, 7.5]} rotation={Math.PI} />
+      <Sofa position={[18.5, 0, 7.5]} rotation={Math.PI} />
+      <LobbyTable position={[17.25, 0, 7.5]} />
 
       {/* ═══════════════════════════════════════
           SERVER ROOM — NE CORNER

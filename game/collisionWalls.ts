@@ -128,4 +128,19 @@ export const COLLISION_WALLS: number[][] = [
   // ── Engineering north extension (cx=5, cz=8) rows ────────────────
   [2.9, 5.9, 7.1, 7.05],   // row z=6
   [2.9, 9.9, 7.1, 11.05],  // row z=10
+
+  // ── Lobby sofas (south cluster x=-22.5, z=-4.5 and z=-2.8) ──────
+  [-23.6, -5.2, -21.4, -3.8],   // south sofa A
+  [-23.6, -3.5, -21.4, -2.1],   // south sofa B
+
+  // ── Lobby sofa (north, x=-22.5, z=2.5) ──────────────────────────
+  [-23.6, 1.8, -21.4, 3.2],
+
+  // ── Breakout sofas (x=-12.5, z=12 and z=16) ─────────────────────
+  [-13.5, 11.2, -11.5, 12.8],
+  [-13.5, 15.2, -11.5, 16.8],
+
+  // ── Server-room-adjacent sofas (z=7.5, x=16 and x=18.5) ─────────
+  [15.0, 6.8, 17.0, 8.2],
+  [17.5, 6.8, 19.5, 8.2],
 ];

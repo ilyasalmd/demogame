@@ -69,6 +69,7 @@ export function PlayerController({ walls }: PlayerControllerProps) {
   const walkBlendRef = useRef(0); // 0=idle, 1=full walk — lerped for smooth start/stop
   const hadDialogueRef = useRef(false);
   const prevDialogueRef = useRef<boolean>(false);
+  const prevDocRef      = useRef<boolean>(false);
 
   // Throttle refs — only push to Zustand when value actually changes
   const lastReportedPos = useRef({ x: 0, z: 0 });
@@ -86,6 +87,8 @@ export function PlayerController({ walls }: PlayerControllerProps) {
   const rightArmRef = useRef<THREE.Group>(null);
 
   const { setNearbyInteractable, setNearbyDoor, stage, cameraMode, activeDialogue, ambienceUnlocked, setPlayerPosition } = useGameStore();
+  // Track document open/close separately so we can exit/re-enter pointer lock around it
+  const activeDocumentOpen = useGameStore((s) => !!s.activeDocument);
 
   useEffect(() => {
     const canvas = document.querySelector("canvas");
@@ -111,13 +114,36 @@ export function PlayerController({ walls }: PlayerControllerProps) {
       const canvas = document.querySelector("canvas");
       if (canvas) {
         const t = setTimeout(() => {
-          if (!useGameStore.getState().activeDialogue) canvas.requestPointerLock();
+          if (!useGameStore.getState().activeDialogue && !useGameStore.getState().activeDocument) {
+            canvas.requestPointerLock();
+          }
         }, 150);
         return () => clearTimeout(t);
       }
     }
     prevDialogueRef.current = !!activeDialogue;
   }, [activeDialogue]);
+
+  // ── Document / presentation pointer-lock management ───────────────────────
+  // When a document opens: free the mouse so the user can scroll/read.
+  // When it closes: automatically recapture so the player can move right away.
+  useEffect(() => {
+    if (activeDocumentOpen) {
+      if (document.pointerLockElement) document.exitPointerLock();
+    } else if (prevDocRef.current) {
+      // Document just closed — re-enter game pointer lock after the exit animation
+      const canvas = document.querySelector("canvas");
+      if (canvas) {
+        const t = setTimeout(() => {
+          if (!useGameStore.getState().activeDialogue && !useGameStore.getState().activeDocument) {
+            canvas.requestPointerLock();
+          }
+        }, 250);
+        return () => clearTimeout(t);
+      }
+    }
+    prevDocRef.current = activeDocumentOpen;
+  }, [activeDocumentOpen]);
 
   useEffect(() => {
     const canvas = document.querySelector("canvas");
