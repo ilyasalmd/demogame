@@ -25,6 +25,12 @@ interface GameStore extends GameState {
   playerPosition: [number, number, number];
   setPlayerPosition: (p: [number, number, number]) => void;
 
+  // Door interaction
+  nearbyDoor: string | null;
+  setNearbyDoor: (id: string | null) => void;
+  openDoors: string[];
+  toggleDoor: (id: string) => void;
+
   // Speech bubbles above NPCs
   speechBubbles: Record<string, string>;
   setSpeechBubble: (characterId: string, text: string) => void;
@@ -52,10 +58,17 @@ interface GameStore extends GameState {
   setTimeRemaining: (t: number) => void;
   freeTextAnswer: string;
   submitFreeText: (answer: string) => void;
+  ambienceUnlocked: boolean;
+
+  // Set to true when Three.js assets + GPU shaders are warm but before the user
+  // has clicked ENTER — lets LoadingScreen show a button (= user gesture) so
+  // speechSynthesis is unlocked before the receptionist fires.
+  sceneReady: boolean;
+  setSceneReady: () => void;
 }
 
 const initialState: GameState = {
-  screen: "start",
+  screen: "loading",
   stage: "start",
   scores: { ...INITIAL_SCORES },
   currentFloor: 0,
@@ -82,12 +95,31 @@ const initialState: GameState = {
 
 export const useGameStore = create<GameStore>((set, get) => ({
   ...initialState,
-  playerPosition: [-18, 0.9, 0],
+  playerPosition: [-22, 0, 0],
   speechBubbles: {},
   activeDocument: null,
+  nearbyDoor: null,
+  openDoors: [],
+  ambienceUnlocked: false,
+  sceneReady: false,
 
   setPlayerPosition(p) {
     set({ playerPosition: p });
+  },
+
+  setSceneReady() {
+    set({ sceneReady: true });
+  },
+
+  setNearbyDoor(id) {
+    set({ nearbyDoor: id });
+  },
+
+  toggleDoor(id) {
+    set((s) => {
+      const already = s.openDoors.includes(id);
+      return { openDoors: already ? s.openDoors.filter(d => d !== id) : [...s.openDoors, id] };
+    });
   },
 
   setSpeechBubble(characterId, text) {
@@ -113,16 +145,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   startGame() {
+    // Transition driven by LoadingBarrier inside the Canvas (real GPU/asset progress)
     set({ screen: "loading", loadingProgress: 0 });
-    const interval = setInterval(() => {
-      const { loadingProgress } = get();
-      if (loadingProgress >= 100) {
-        clearInterval(interval);
-        get().finishLoading();
-      } else {
-        set({ loadingProgress: loadingProgress + Math.random() * 12 + 3 });
-      }
-    }, 200);
   },
 
   setLoadingProgress(p) {
@@ -130,6 +154,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   finishLoading() {
+    // Set everything — including the opening dialogue — in one synchronous update
+    // so the DialoguePanel and voice fire as soon as the canvas becomes visible.
     set({
       screen: "game",
       stage: "arrival",
@@ -217,7 +243,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     } else if ((dialogue.options && dialogue.options.length > 0) || dialogue.freeTextInput) {
       set({ dialogueStep: nextStep });
     } else {
-      set({ activeDialogue: null, dialogueStep: 0 });
+      // Unlock ambient soundscape once the opening receptionist dialogue ends
+      const unlock = dialogue.id === "arrival" && !state.ambienceUnlocked;
+      set({ activeDialogue: null, dialogueStep: 0, ...(unlock ? { ambienceUnlocked: true } : {}) });
     }
   },
 
@@ -350,10 +378,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   resetGame() {
     set({
       ...initialState,
-      playerPosition: [-18, 0.9, 0],
+      playerPosition: [-22, 0, 0],
       speechBubbles: {},
       activeDocument: null,
+      nearbyDoor: null,
+      openDoors: [],
       freeTextAnswer: "",
+      ambienceUnlocked: false,
+      sceneReady: false,
     });
   },
 

@@ -10,6 +10,7 @@ export const CHARACTERS: CharacterDef[] = [
     position: [2, 0, -10],
     floor: 0,
     interactStage: "meet_maya",
+    speechRate: 1.05,
   },
   {
     id: "theo",
@@ -20,6 +21,7 @@ export const CHARACTERS: CharacterDef[] = [
     position: [9, 0, 4],
     floor: 0,
     interactStage: "speak_to_theo",
+    speechRate: 0.88,
   },
   {
     id: "oliver",
@@ -30,6 +32,7 @@ export const CHARACTERS: CharacterDef[] = [
     position: [13, 0, 2],
     floor: 0,
     interactStage: "commercial_pressure",
+    speechRate: 1.15,
   },
   {
     id: "priya",
@@ -40,6 +43,7 @@ export const CHARACTERS: CharacterDef[] = [
     position: [-2, 0, 12],
     floor: 0,
     interactStage: "compliance_check",
+    speechRate: 0.92,
   },
   {
     id: "amara",
@@ -50,30 +54,76 @@ export const CHARACTERS: CharacterDef[] = [
     position: [18, 0, -8],
     floor: 0,
     interactStage: "final_recommendation",
+    speechRate: 0.95,
   },
 ];
 
+// ─── BACKGROUND NPC POSITIONS ────────────────────────────────────────────────
+// All positions are EXACT chair positions extracted from OfficeProps.tsx.
+// facing: 0 = face north (+z), Math.PI = face south (-z)
+// isWalker: roams the office instead of sitting
 export const BACKGROUND_NPCS = [
-  { id: "bg1", position: [-3, 0, -7] as [number,number,number], color: "#475569", skinColor: "#fdbcb4" },
-  { id: "bg2", position: [5, 0, -12] as [number,number,number], color: "#64748b", skinColor: "#d4a574" },
-  { id: "bg3", position: [-5, 0, 4] as [number,number,number], color: "#475569", skinColor: "#f3c5a0" },
-  { id: "bg4", position: [11, 0, -3] as [number,number,number], color: "#334155", skinColor: "#c8a882" },
-  { id: "bg5", position: [-10, 0, 3] as [number,number,number], color: "#64748b", skinColor: "#fdbcb4" },
-  { id: "bg6", position: [4, 0, 11] as [number,number,number], color: "#475569", skinColor: "#8d5524" },
-  { id: "bg7", position: [-6, 0, -11] as [number,number,number], color: "#334155", skinColor: "#d4a574" },
-  { id: "bg8", position: [7, 0, -11] as [number,number,number], color: "#475569", skinColor: "#f3c5a0" },
-  { id: "bg9", position: [-14, 0, -5] as [number,number,number], color: "#64748b", skinColor: "#fdbcb4" },
-  { id: "bg10", position: [16, 0, 6] as [number,number,number], color: "#334155", skinColor: "#d4a574" },
-  { id: "bg11", position: [-7, 0, 15] as [number,number,number], color: "#475569", skinColor: "#c8a882" },
-  { id: "bg12", position: [3, 0, 15] as [number,number,number], color: "#64748b", skinColor: "#fdbcb4" },
-  { id: "bg13", position: [0, 0, -14] as [number,number,number], color: "#4f46e5", skinColor: "#d4a574", isFemale: true },
-  { id: "bg14", position: [14, 0, -5] as [number,number,number], color: "#0891b2", skinColor: "#c8a882" },
-  { id: "bg15", position: [-8, 0, 8] as [number,number,number], color: "#9333ea", skinColor: "#8d5524", isFemale: true },
-  { id: "bg16", position: [6, 0, 6] as [number,number,number], color: "#16a34a", skinColor: "#fdbcb4" },
-  { id: "bg17", position: [-3, 0, 14] as [number,number,number], color: "#dc2626", skinColor: "#f3c5a0", isFemale: true },
-  { id: "bg18", position: [10, 0, 14] as [number,number,number], color: "#d97706", skinColor: "#d4a574" },
-  { id: "bg19", position: [-13, 0, 10] as [number,number,number], color: "#0f766e", skinColor: "#f3c5a0", isFemale: true },
-  { id: "bg20", position: [17, 0, -2] as [number,number,number], color: "#7c3aed", skinColor: "#c8a882" },
+  // ── Analytics pod front row (desks z=-9, chairs z=-8.2, face south) ──
+  { id: "bg1",  position: [-1,   0, -8.2]  as [number,number,number], facing: Math.PI, color: "#475569", skinColor: "#fdbcb4", chatLine: "Alright mate, you seen the Jira board?" },
+  { id: "bg2",  position: [4,    0, -8.2]  as [number,number,number], facing: Math.PI, color: "#64748b", skinColor: "#8d5524", chatLine: "Absolute nightmare, the build's been down since nine" },
+  // ── West analytics pod 1 (cx=-6, cz=-10) ──
+  // Row 0 desks: z=-12, chairs z=-13.1, face north
+  { id: "bg6",  position: [-7.1, 0, -13.1] as [number,number,number], facing: 0,         color: "#4f46e5", skinColor: "#fdbcb4" },
+  { id: "bg7",  position: [-4.9, 0, -13.1] as [number,number,number], facing: 0,         color: "#0891b2", skinColor: "#d4a574", chatLine: "Right, so the API's throwing 500s again..." },
+  // Row 1 desks: z=-8, chairs z=-6.9, face south
+  { id: "bg8",  position: [-7.1, 0, -6.9]  as [number,number,number], facing: Math.PI, color: "#9333ea", skinColor: "#c8a882", isFemale: true, chatLine: "Can you believe they moved the all-hands to Monday?" },
+  { id: "bg9",  position: [-4.9, 0, -6.9]  as [number,number,number], facing: Math.PI, color: "#16a34a", skinColor: "#f3c5a0" },
+  // ── West analytics pod 2 (cx=-10, cz=-10) ──
+  // Row 0: chairs z=-13.1, face north
+  { id: "bg10", position: [-11.1,0, -13.1] as [number,number,number], facing: 0,         color: "#dc2626", skinColor: "#8d5524", isFemale: true, chatLine: "Did you see what they said in the town hall?" },
+  { id: "bg11", position: [-8.9, 0, -13.1] as [number,number,number], facing: 0,         color: "#d97706", skinColor: "#fdbcb4" },
+  // Row 1: chairs z=-6.9, face south
+  { id: "bg12", position: [-11.1,0, -6.9]  as [number,number,number], facing: Math.PI, color: "#0f766e", skinColor: "#d4a574", chatLine: "Grab us a coffee when you're up?" },
+  { id: "bg13", position: [-8.9, 0, -6.9]  as [number,number,number], facing: Math.PI, color: "#7c3aed", skinColor: "#c8a882", isFemale: true },
+  // ── Central open plan (cx=1, cz=0, 3×3) ──
+  // Row 0: z=-4, chairs z=-5.1, face north
+  { id: "bg14", position: [-1.2, 0, -5.1]  as [number,number,number], facing: 0,         color: "#059669", skinColor: "#fdbcb4", chatLine: "That standup ran way over again" },
+  { id: "bg15", position: [1,    0, -5.1]  as [number,number,number], facing: 0,         color: "#0891b2", skinColor: "#f3c5a0" },
+  { id: "bg16", position: [3.2,  0, -5.1]  as [number,number,number], facing: 0,         color: "#7c2d12", skinColor: "#d4a574", chatLine: "Going for a cheeky lunch at one, you coming?" },
+  // Row 1: z=0, chairs z=1.1, face south
+  { id: "bg17", position: [-1.2, 0, 1.1]   as [number,number,number], facing: Math.PI, color: "#47185f", skinColor: "#8d5524", isFemale: true },
+  { id: "bg18", position: [1,    0, 1.1]   as [number,number,number], facing: Math.PI, color: "#ea580c", skinColor: "#fdbcb4", chatLine: "We're doing a retro later, should be quick" },
+  { id: "bg19", position: [3.2,  0, 1.1]   as [number,number,number], facing: Math.PI, color: "#3b82f6", skinColor: "#c8a882" },
+  // Row 2: z=4, chairs z=2.9, face north
+  { id: "bg20", position: [-1.2, 0, 2.9]   as [number,number,number], facing: 0,         color: "#1f2937", skinColor: "#d4a574", chatLine: "Just leave it in Teams, I'll pick it up" },
+  { id: "bg21", position: [1,    0, 2.9]   as [number,number,number], facing: 0,         color: "#374151", skinColor: "#f3c5a0", isFemale: true, chatLine: "Honestly, three PRs merged today, not bad" },
+  { id: "bg22", position: [3.2,  0, 2.9]   as [number,number,number], facing: 0,         color: "#6b21a8", skinColor: "#fdbcb4" },
+  // ── Engineering pod (cx=9, cz=3.5) — skip Theo's chair at [9,0,0.4] ──
+  // Row 0: chairs z=0.4, face north
+  { id: "bg23", position: [6.8,  0, 0.4]   as [number,number,number], facing: 0,         color: "#334155", skinColor: "#c8a882" },
+  { id: "bg24", position: [11.2, 0, 0.4]   as [number,number,number], facing: 0,         color: "#475569", skinColor: "#8d5524" },
+  // Row 1: chairs z=6.6, face south
+  { id: "bg25", position: [6.8,  0, 6.6]   as [number,number,number], facing: Math.PI, color: "#64748b", skinColor: "#fdbcb4" },
+  { id: "bg26", position: [9,    0, 6.6]   as [number,number,number], facing: Math.PI, color: "#1e3a5f", skinColor: "#d4a574" },
+  { id: "bg27", position: [11.2, 0, 6.6]   as [number,number,number], facing: Math.PI, color: "#0369a1", skinColor: "#f3c5a0", isFemale: true },
+  // ── Ops zone (cx=-8.5, cz=3.5) ──
+  // Row 0: chairs z=0.4, face north
+  { id: "bg28", position: [-9.6, 0, 0.4]   as [number,number,number], facing: 0,         color: "#047857", skinColor: "#fdbcb4" },
+  { id: "bg29", position: [-7.4, 0, 0.4]   as [number,number,number], facing: 0,         color: "#0891b2", skinColor: "#d4a574", isFemale: true },
+  // Row 1: chairs z=6.6, face south
+  { id: "bg30", position: [-9.6, 0, 6.6]   as [number,number,number], facing: Math.PI, color: "#374151", skinColor: "#c8a882" },
+  { id: "bg31", position: [-7.4, 0, 6.6]   as [number,number,number], facing: Math.PI, color: "#64748b", skinColor: "#8d5524" },
+  // ── Compliance pod ──
+  { id: "bg34", position: [-3,   0, 13.8]  as [number,number,number], facing: Math.PI, color: "#64748b", skinColor: "#d4a574" },
+  { id: "bg35", position: [-0.5, 0, 13.8]  as [number,number,number], facing: Math.PI, color: "#4f46e5", skinColor: "#c8a882" },
+  // ── Extra row A (DeskPod cz=-14, chairs at z=-15.1, face north toward monitors)
+  { id: "bg40", position: [-2.2, 0, -15.1] as [number,number,number], facing: 0, color: "#6366f1", skinColor: "#fdbcb4", chatLine: "That dedupe script's been running since half seven" },
+  { id: "bg41", position: [0,   0, -15.1] as [number,number,number], facing: 0, color: "#10b981", skinColor: "#d4a574", isFemale: true, chatLine: "Ninety-four percent accuracy overnight — yeah right" },
+  { id: "bg42", position: [2.2, 0, -15.1] as [number,number,number], facing: 0, color: "#f59e0b", skinColor: "#c8a882", chatLine: "Oliver's already put the number on the slide, hasn't he" },
+  // ── Extra row B (DeskPod cz=-17, chairs at z=-18.1, face north toward monitors)
+  { id: "bg43", position: [-2.2, 0, -18.1] as [number,number,number], facing: 0, color: "#a855f7", skinColor: "#8d5524", chatLine: "Three pull requests already and it's not even nine" },
+  { id: "bg44", position: [0,   0, -18.1] as [number,number,number], facing: 0, color: "#0ea5e9", skinColor: "#f3c5a0", isFemale: true, chatLine: "They changed the schema again, didn't they" },
+  { id: "bg45", position: [2.2, 0, -18.1] as [number,number,number], facing: 0, color: "#ec4899", skinColor: "#d4a574", chatLine: "The client's already in the building apparently" },
+  // ── Walkers — only 4, roam the office ──
+  { id: "bg36", position: [-4,   0, -4]    as [number,number,number], color: "#374151", skinColor: "#fdbcb4",          isWalker: true },
+  { id: "bg37", position: [2,    0, -7]    as [number,number,number], color: "#2d1b4e", skinColor: "#d4a574", isFemale: true, isWalker: true },
+  { id: "bg38", position: [-3,   0, 2]     as [number,number,number], color: "#1e3a5f", skinColor: "#8d5524",          isWalker: true },
+  { id: "bg39", position: [7,    0, -3]    as [number,number,number], color: "#374151", skinColor: "#c8a882", isFemale: true, isWalker: true },
 ];
 
 // ─── DIALOGUE NODES ──────────────────────────────────────────────────────────
@@ -83,15 +133,15 @@ export const DIALOGUE_ARRIVAL: DialogueNode = {
   lines: [
     {
       speaker: "Receptionist",
-      text: "Good morning. You must be the new analyst — we've been expecting you. Maya Chen's been asking for you since eight.",
+      text: "Morning! Oh — you must be the new analyst. Brilliant, we've been expecting you. I'm Charlotte. Just so you know, Maya Chen has been in since before eight — first one through the door every single morning, honestly, without fail.",
     },
     {
       speaker: "Receptionist",
-      text: "Fair warning: there is a big client demo today — under an hour away. She came in very early this morning. That's not nothing.",
+      text: "Quick heads-up though — there's been a bit of a situation with the data pipeline overnight, and the client demo is in under an hour. It's a bit all-hands this morning, so Maya will bring you up to speed. You haven't missed anything critical. Yet.",
     },
     {
       speaker: "Receptionist",
-      text: "Analytics pod — past the glass partition on your left, first cluster of desks you'll see. You can't miss her.",
+      text: "Head straight through the barrier on your left — analytics pod, first cluster of desks. Maya's the one who looks like she hasn't slept. Trust me, that does narrow it down to one person. Right — good luck. You are going to need it.",
     },
   ],
   autoAdvance: false,
@@ -133,38 +183,38 @@ export const DIALOGUE_MAYA_INITIAL: DialogueNode = {
   options: [
     {
       id: "maya_dismiss",
-      label: "These flags come up after data refreshes — let Theo confirm before assuming anything.",
+      label: "Validation flags are common after pipeline updates. You'd want Theo to confirm it's actually a problem.",
       tone: "passive",
       scoreImpact: { evidenceGathering: -8, ethicalJudgement: -6, situationalAwareness: -4 },
       reviewTag: "mistake",
-      reviewText: "Dismissing a potential data integrity issue without investigation signals low situational awareness.",
+      reviewText: "You read the situation as low-risk. That's defensible — but if the flag turns out to be real, you'll have been the analyst who saw it and moved on.",
       nextStage: "speak_to_theo",
     },
     {
       id: "maya_panic",
-      label: "You should go tell Oliver right now before anyone else does.",
+      label: "The right thing is transparency — Oliver deserves to know before the client arrives, even if it's uncomfortable.",
       tone: "aggressive",
       scoreImpact: { ethicalJudgement: 4, emotionalControl: -8, riskCalibration: -6, communicationQuality: -4 },
       reviewTag: "mistake",
-      reviewText: "Well-intentioned but structurally weak — you escalated without facts, which makes you easy to dismiss.",
+      reviewText: "Your instinct to be transparent is right. But going to Oliver without quantified impact hands him an easy out — 'you're overreacting' is hard to rebut without numbers.",
       nextStage: "speak_to_theo",
     },
     {
       id: "maya_ask_evidence",
-      label: "Pull up the dashboard so you can see the actual impact before deciding anything.",
+      label: "Before escalating, quantify the impact — what does the deduplication actually change the score to?",
       tone: "calm",
       scoreImpact: { evidenceGathering: 10, situationalAwareness: 6, ethicalJudgement: 4 },
       reviewTag: "best",
-      reviewText: "You asked for evidence before acting — calm, systematic, prevents both overreaction and under-reaction.",
+      reviewText: "Solid instinct. You want the number before the conversation. This is what separates analysts from administrators.",
       nextStage: "speak_to_theo",
     },
     {
       id: "maya_hide",
-      label: "Take the metric off the slide temporarily — easier to add back than explain later.",
+      label: "You're not hiding anything — just removing an unverified number from the deck until it's confirmed.",
       tone: "evasive",
       scoreImpact: { ethicalJudgement: -12, riskCalibration: -8, communicationQuality: -6 },
       reviewTag: "critical",
-      reviewText: "Removing evidence without disclosure is a transparency failure.",
+      reviewText: "This looks pragmatic in the moment. But removing data without logging why, on a client demo day, creates an audit trail problem regardless of intent.",
       nextStage: "speak_to_theo",
     },
   ],
@@ -266,7 +316,19 @@ export const DIALOGUE_THEO: DialogueNode = {
     },
     {
       speaker: "Theo Marsh",
+      text: "The deduplication check has been in the pipeline spec for three weeks. Maya knew about it.",
+    },
+    {
+      speaker: "Theo Marsh",
       text: "Could be duplicate patient IDs from the source hospital data. Could be a caching artefact from the overnight merge job. Could be entirely cosmetic. I have been trying to work out which — but I need two hours minimum to be certain.",
+    },
+    {
+      speaker: "Theo Marsh",
+      text: "I can run the dedupe fix in 90 minutes. But that means the demo model isn't the production model.",
+    },
+    {
+      speaker: "Theo Marsh",
+      text: "If we delay for 90 minutes, Oliver loses the client. If we go ahead, the score might be off by a few points.",
     },
     {
       speaker: "Theo Marsh",
@@ -360,11 +422,19 @@ export const DIALOGUE_OLIVER: DialogueNode = {
     },
     {
       speaker: "Oliver Grant",
+      text: "Three months of pipeline work. Eight people. And the number on the slide might be wrong by... what, five points? You're asking me to cancel over a maybe.",
+    },
+    {
+      speaker: "Oliver Grant",
       text: "The validation figure went up. Significantly. Overnight. The client cares about the direction of travel, not one decimal point of precision on a preliminary figure.",
     },
     {
       speaker: "Oliver Grant",
       text: "This caveat you are bringing me — potential duplicates, pending review — has not been confirmed by engineering. It is a hypothesis. And hypotheses do not close deals.",
+    },
+    {
+      speaker: "Oliver Grant",
+      text: "I'm not saying suppress it. I'm saying: can we present the 82% number, close the deal, and fix it before production? That's not dishonest. That's practical.",
     },
     {
       speaker: "Oliver Grant",

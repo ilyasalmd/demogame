@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400">
+  <rect width="1600" height="400" fill="#050508"/>
+  <defs>
+    <linearGradient id="pg" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#6d28d9"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#ef4444"/>
+      <stop offset="17%"  stop-color="#f97316"/>
+      <stop offset="33%"  stop-color="#eab308"/>
+      <stop offset="50%"  stop-color="#22c55e"/>
+      <stop offset="67%"  stop-color="#06b6d4"/>
+      <stop offset="83%"  stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ── A (purple gradient, bold) ───────────────────── -->
+  <path d="M 52 365 L 162 42 L 272 365"
+        fill="none" stroke="url(#pg)" stroke-width="40"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="97"  y1="240" x2="227" y2="240"
+        stroke="url(#pg)" stroke-width="32" stroke-linecap="round"/>
+
+  <!-- ── I (purple bar) ───────────────────────────────── -->
+  <rect x="426" y="42" width="36" height="323" rx="18" fill="url(#pg)"/>
+
+  <!-- ── Circle logo mark ─────────────────────────────── -->
+  <!-- Ring -->
+  <circle cx="790" cy="204" r="149" fill="none" stroke="url(#rg)" stroke-width="10"/>
+  <!-- 7 dots (orbit r=80 px) -->
+  <!-- angles: i/7 * 2π - π/2; svg_y = 204 - sin(angle)*80 -->
+  <circle cx="790" cy="284" r="23" fill="#ef4444"/>
+  <circle cx="853" cy="250" r="23" fill="#f97316"/>
+  <circle cx="869" cy="181" r="23" fill="#eab308"/>
+  <circle cx="824" cy="126" r="23" fill="#22c55e"/>
+  <circle cx="756" cy="126" r="23" fill="#06b6d4"/>
+  <circle cx="711" cy="181" r="23" fill="#3b82f6"/>
+  <circle cx="727" cy="250" r="23" fill="#a855f7"/>
+
+  <!-- ── O (white outline) ─────────────────────────────── -->
+  <circle cx="1100" cy="204" r="124"
+          fill="none" stroke="rgba(255,255,255,0.82)" stroke-width="22"/>
+
+  <!-- ── A (white outline) ─────────────────────────────── -->
+  <path d="M 1328 365 L 1440 42 L 1552 365"
+        fill="none" stroke="rgba(255,255,255,0.82)" stroke-width="22"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="1368" y1="240" x2="1512" y2="240"
+        stroke="rgba(255,255,255,0.82)" stroke-width="22" stroke-linecap="round"/>
+</svg>

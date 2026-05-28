@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Text } from "@react-three/drei";
+import { Text, Billboard, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { PlayerController } from "./PlayerController";
 import { OfficeProps } from "./OfficeProps";
@@ -10,39 +10,102 @@ import { BackgroundNPCs } from "./BackgroundNPCs";
 import { LondonExterior } from "./LondonExterior";
 import { CHARACTERS, BACKGROUND_NPCS, INTERACTABLE_OBJECTS } from "@/game/data";
 import { useGameStore } from "@/store/gameStore";
+import { COLLISION_WALLS } from "@/game/collisionWalls";
+export { COLLISION_WALLS };
 
-// Office: X -25..25, Z -20..20 — ceiling at Y=5.5
-export const COLLISION_WALLS: number[][] = [
-  // ── Outer boundary ────────────────────────────────────────────────
-  [-25, -20, 25, -19.5],    // south glass wall
-  [-25, 19.5, 25, 20],      // north glass wall
-  [-25, -20, -24.5, 20],    // west glass wall
-  [24.5, -20, 25, 20],      // east glass wall
+function AnimatedLiftDoor({ position, phaseOffset = 0 }: {
+  position: [number, number, number]; phaseOffset?: number;
+}) {
+  const leftRef = useRef<THREE.Group>(null);
+  const rightRef = useRef<THREE.Group>(null);
+  const timerRef = useRef(phaseOffset);
 
-  // ── Lift lobby dividing wall — 6-unit door gap at z=0 for entry ──
-  [-18.3, -9, -18, -3],     // south portion
-  [-18.3, 3, -18, 9],       // north portion
+  const CYCLE = 14; // 14s full cycle
+  const OPEN_DUR = 1.1;
+  const STAY_DUR = 3.2;
+  const CLOSE_DUR = 1.1;
+  const DOOR_HALF = 0.88; // how far each panel slides
 
-  // ── Boardroom (fully enclosed glass box) ─────────────────────────
-  [7.7, -19.5, 8, -10.5],   // west wall
-  [7.7, -10.5, 18, -9.7],   // north wall
-  [18, -10.5, 18.3, -19.5], // east wall
-  // south wall = outer boundary at z=-19.5
+  useFrame((_, delta) => {
+    timerRef.current = (timerRef.current + delta) % CYCLE;
+    const t = timerRef.current;
+    let offset: number;
+    if (t < OPEN_DUR) {
+      offset = DOOR_HALF * (t / OPEN_DUR);
+    } else if (t < OPEN_DUR + STAY_DUR) {
+      offset = DOOR_HALF;
+    } else if (t < OPEN_DUR + STAY_DUR + CLOSE_DUR) {
+      offset = DOOR_HALF * (1 - (t - OPEN_DUR - STAY_DUR) / CLOSE_DUR);
+    } else {
+      offset = 0;
+    }
+    if (leftRef.current) leftRef.current.position.x = -offset;
+    if (rightRef.current) rightRef.current.position.x = offset;
+  });
 
-  // ── Huddle room A — west / north / east walls, open on south ─────
-  [7.7, 7.2, 8, 14],
-  [7.7, 14, 14, 14.3],
-  [14, 7.2, 14.3, 14],
+  const DOOR_H = 5.5;
+  return (
+    <group position={position}>
+      {/* Lift shaft recess / wall surround */}
+      <mesh position={[0, DOOR_H / 2, 0]}>
+        <boxGeometry args={[2.0, DOOR_H + 0.1, 0.35]} />
+        <meshStandardMaterial color="#111120" roughness={0.3} metalness={0.7} />
+      </mesh>
+      {/* Frame surround — brushed steel */}
+      <mesh position={[0, DOOR_H / 2, 0.17]}>
+        <boxGeometry args={[2.12, DOOR_H + 0.12, 0.06]} />
+        <meshStandardMaterial color="#808898" roughness={0.15} metalness={0.9} />
+      </mesh>
+      {/* Left door panel */}
+      <group ref={leftRef} position={[-DOOR_HALF / 2, 0, 0]}>
+        <mesh position={[0, DOOR_H / 2, 0.21]}>
+          <boxGeometry args={[DOOR_HALF * 2, DOOR_H - 0.06, 0.09]} />
+          <meshStandardMaterial color="#1e2838" roughness={0.1} metalness={0.95} />
+        </mesh>
+        {/* Gold vertical stripe on left door */}
+        <mesh position={[DOOR_HALF - 0.04, DOOR_H / 2, 0.27]}>
+          <boxGeometry args={[0.04, DOOR_H - 0.3, 0.02]} />
+          <meshStandardMaterial color="#c9a827" roughness={0.08} metalness={0.95} />
+        </mesh>
+      </group>
+      {/* Right door panel */}
+      <group ref={rightRef} position={[DOOR_HALF / 2, 0, 0]}>
+        <mesh position={[0, DOOR_H / 2, 0.21]}>
+          <boxGeometry args={[DOOR_HALF * 2, DOOR_H - 0.06, 0.09]} />
+          <meshStandardMaterial color="#1e2838" roughness={0.1} metalness={0.95} />
+        </mesh>
+        {/* Gold vertical stripe on right door */}
+        <mesh position={[-(DOOR_HALF - 0.04), DOOR_H / 2, 0.27]}>
+          <boxGeometry args={[0.04, DOOR_H - 0.3, 0.02]} />
+          <meshStandardMaterial color="#c9a827" roughness={0.08} metalness={0.95} />
+        </mesh>
+      </group>
+      {/* Floor indicator display above doors */}
+      <mesh position={[0, DOOR_H + 0.22, 0.17]}>
+        <boxGeometry args={[1.8, 0.38, 0.06]} />
+        <meshStandardMaterial color="#050508" roughness={0.3} metalness={0.5} />
+      </mesh>
+      <mesh position={[0, DOOR_H + 0.22, 0.21]}>
+        <boxGeometry args={[1.6, 0.28, 0.01]} />
+        <meshStandardMaterial color="#020202" emissive="#c9a827" emissiveIntensity={0.6} />
+      </mesh>
+      {/* Call button panel on right side of door */}
+      <mesh position={[1.14, 1.45, 0.22]}>
+        <boxGeometry args={[0.12, 0.28, 0.06]} />
+        <meshStandardMaterial color="#0a0a14" roughness={0.3} metalness={0.6} />
+      </mesh>
+      <mesh position={[1.14, 1.52, 0.26]}>
+        <cylinderGeometry args={[0.032, 0.032, 0.02, 8]} />
+        <meshStandardMaterial color="#c9a827" emissive="#c9a827" emissiveIntensity={0.9} roughness={0.05} metalness={0.95} />
+      </mesh>
+      <mesh position={[1.14, 1.38, 0.26]}>
+        <cylinderGeometry args={[0.032, 0.032, 0.02, 8]} />
+        <meshStandardMaterial color="#808898" roughness={0.2} metalness={0.9} />
+      </mesh>
+    </group>
+  );
+}
 
-  // ── Huddle room B — west / north walls + south wall with door ────
-  [-7, 9.7, -7.3, 18],      // west wall
-  [-7, 18, 2, 18.3],        // north wall
-  [-7.3, 9.7, -3.8, 10],    // south-west (leaves 3-unit door near Priya at x=-2)
-  [-0.2, 9.7, 2, 10],       // south-east
-
-  // ── Server room (fully enclosed) ─────────────────────────────────
-  [20, 7, 24.5, 19.5],
-];
 
 export function OfficeScene() {
   const { nearbyInteractable } = useGameStore();
@@ -50,7 +113,8 @@ export function OfficeScene() {
   return (
     <>
       {/* Daytime haze — light blue-grey */}
-      <fog attach="fog" args={["#c8d8ec", 55, 110]} />
+      <color attach="background" args={["#87b0d8"]} />
+      <fog attach="fog" args={["#87b0d8", 80, 600]} />
 
       <SceneLighting />
       <OfficeEnvironment />
@@ -77,73 +141,121 @@ function SceneLighting() {
       {/* Bright daytime ambient — London overcast/sunny mix */}
       <ambientLight intensity={2.0} color="#deeeff" />
 
-      {/* Main sun — strong morning sun from south-east */}
+      {/* Main sun — 1024 shadow map (was 2048) */}
       <directionalLight
         position={[45, 40, -15]}
         intensity={4.0}
         color="#fff8e0"
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-near={0.5}
-        shadow-camera-far={100}
-        shadow-camera-left={-35}
-        shadow-camera-right={35}
-        shadow-camera-top={30}
-        shadow-camera-bottom={-30}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-camera-near={1}
+        shadow-camera-far={80}
+        shadow-camera-left={-28}
+        shadow-camera-right={28}
+        shadow-camera-top={24}
+        shadow-camera-bottom={-24}
       />
 
-      {/* Sky fill from overhead */}
+      {/* Sky fill + bounce — no shadows */}
       <directionalLight position={[0, 50, 0]} intensity={1.6} color="#c0d8f8" />
-      {/* North skylight bounce */}
       <directionalLight position={[-20, 20, 30]} intensity={0.9} color="#d0e4f8" />
 
-      {/* LED panel ceiling lights — grid across entire office */}
-      {/* Row 1 — south zone (analytics) */}
-      <rectAreaLight position={[-12, 5.3, -14]} width={4} height={1.5} intensity={15} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[-4, 5.3, -14]} width={4} height={1.5} intensity={15} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[4, 5.3, -14]} width={4} height={1.5} intensity={15} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[12, 5.3, -14]} width={4} height={1.5} intensity={14} color="#f0e8d8" rotation={[Math.PI / 2, 0, 0]} />
-      {/* Row 2 — middle */}
-      <rectAreaLight position={[-16, 5.3, -5]} width={4} height={1.5} intensity={14} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[-8, 5.3, -5]} width={4} height={1.5} intensity={15} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[0, 5.3, -5]} width={4} height={1.5} intensity={16} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[8, 5.3, -5]} width={4} height={1.5} intensity={14} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[16, 5.3, -5]} width={4} height={1.5} intensity={13} color="#f0e8d8" rotation={[Math.PI / 2, 0, 0]} />
-      {/* Row 3 — north zone */}
-      <rectAreaLight position={[-16, 5.3, 5]} width={4} height={1.5} intensity={14} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[-8, 5.3, 5]} width={4} height={1.5} intensity={14} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[0, 5.3, 5]} width={4} height={1.5} intensity={14} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[8, 5.3, 5]} width={4} height={1.5} intensity={13} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[16, 5.3, 5]} width={4} height={1.5} intensity={12} color="#f0e8d8" rotation={[Math.PI / 2, 0, 0]} />
-      {/* Row 4 — compliance/breakout */}
-      <rectAreaLight position={[-10, 5.3, 14]} width={4} height={1.5} intensity={13} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[-2, 5.3, 14]} width={4} height={1.5} intensity={13} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
-      <rectAreaLight position={[6, 5.3, 14]} width={4} height={1.5} intensity={12} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
+      {/* Ceiling fill — 8 wide-area lights replacing 17 narrow ones */}
+      <rectAreaLight position={[0, 5.3, -13]} width={30} height={6} intensity={10} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
+      <rectAreaLight position={[0, 5.3, -1]}  width={32} height={8} intensity={11} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
+      <rectAreaLight position={[0, 5.3,  9]}  width={30} height={6} intensity={10} color="#e8f0ff" rotation={[Math.PI / 2, 0, 0]} />
+      <rectAreaLight position={[-18, 5.3, -5]} width={6} height={20} intensity={9} color="#f0e8d8" rotation={[Math.PI / 2, 0, 0]} />
+      <rectAreaLight position={[18, 5.3, -5]}  width={6} height={20} intensity={9} color="#f0e8d8" rotation={[Math.PI / 2, 0, 0]} />
 
-      {/* Accent / zone colours */}
-      <pointLight position={[0, 3, -14]} intensity={8} color="#6366f1" distance={10} decay={2} />
-      <pointLight position={[14, 3, -6]} intensity={8} color="#f59e0b" distance={10} decay={2} />
-      <pointLight position={[-3, 3, 14]} intensity={8} color="#10b981" distance={10} decay={2} />
-      <pointLight position={[10, 3, 5]} intensity={8} color="#0ea5e9" distance={10} decay={2} />
-      <pointLight position={[-10, 3, 14]} intensity={6} color="#06b6d4" distance={8} decay={2} />
-
-      {/* Daylight wash through glass walls */}
-      <pointLight position={[23, 2.5, 0]} intensity={10} color="#d0e4f8" distance={18} decay={2} />
-      <pointLight position={[-23, 2.5, 0]} intensity={6} color="#c8dcf4" distance={14} decay={2} />
-      <pointLight position={[0, 2.5, -19]} intensity={8} color="#ccd8f0" distance={16} decay={2} />
-      <pointLight position={[0, 2.5, 19]} intensity={6} color="#c8dcf0" distance={14} decay={2} />
+      {/* Zone accent colours — 4 key points (was 9) */}
+      <pointLight position={[0, 3, -14]} intensity={10} color="#6366f1" distance={14} decay={2} />
+      <pointLight position={[10, 3, 5]}  intensity={10} color="#0ea5e9" distance={12} decay={2} />
+      <pointLight position={[-3, 3, 14]} intensity={9}  color="#10b981" distance={12} decay={2} />
+      <pointLight position={[0, 3, 0]}   intensity={8}  color="#d0e4f8" distance={30} decay={1} />
     </>
+  );
+}
+
+// ── AI OA Ltd logo — image texture on wall ───────────────────────────────────
+function LogoWall() {
+  const tex = useTexture("/main_logo.png") as THREE.Texture;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+
+  // Subtle screen-glow ref
+  const glowRef = useRef<THREE.MeshStandardMaterial>(null);
+  useFrame((state) => {
+    if (glowRef.current) {
+      glowRef.current.emissiveIntensity =
+        0.55 + Math.sin(state.clock.elapsedTime * 0.4) * 0.08;
+    }
+  });
+
+  // Reception wall (south, z ≈ -19.8) — large display panel
+  return (
+    <group position={[0, 3.0, -19.72]}>
+      {/* Black backing panel — 5.5 × 1.5 m */}
+      <mesh>
+        <boxGeometry args={[5.5, 1.5, 0.08]} />
+        <meshStandardMaterial color="#060608" roughness={0.4} metalness={0.3} />
+      </mesh>
+      {/* Logo image plane */}
+      <mesh position={[0, 0, 0.051]}>
+        <planeGeometry args={[5.1, 1.25]} />
+        <meshStandardMaterial
+          ref={glowRef}
+          map={tex}
+          color="#ffffff"
+          emissive="#ffffff"
+          emissiveMap={tex}
+          emissiveIntensity={0.6}
+          roughness={0.05}
+          transparent
+        />
+      </mesh>
+    </group>
+  );
+}
+
+// Logo panel for side walls / atrium columns
+function LogoPanel({ position, rotation = 0, w = 3.8, h = 1.0 }: {
+  position: [number, number, number]; rotation?: number; w?: number; h?: number; useIcon?: boolean;
+}) {
+  const tex = useTexture("/main_logo.png") as THREE.Texture;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      <mesh>
+        <boxGeometry args={[w + 0.14, h + 0.14, 0.06]} />
+        <meshStandardMaterial color="#060608" roughness={0.4} metalness={0.3} />
+      </mesh>
+      <mesh position={[0, 0, 0.035]}>
+        <planeGeometry args={[w, h]} />
+        <meshStandardMaterial
+          map={tex}
+          color="#ffffff"
+          emissive="#ffffff"
+          emissiveMap={tex}
+          emissiveIntensity={0.5}
+          roughness={0.05}
+          transparent
+        />
+      </mesh>
+    </group>
   );
 }
 
 function OfficeEnvironment() {
   return (
     <>
-      {/* Floor — polished light grey concrete, modern London office */}
+      {/* Floor — warm dark-charcoal carpet */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[50, 40]} />
-        <meshStandardMaterial color="#d0d4d8" roughness={0.18} metalness={0.08} />
+        <meshStandardMaterial color="#1e1c2a" roughness={0.96} metalness={0} />
       </mesh>
 
       {/* Subtle floor tile grid */}
@@ -162,22 +274,36 @@ function OfficeEnvironment() {
       <BoardroomGlass />
       <HuddleRoomA />
       <HuddleRoomB />
+      <ServerRoomGlass />
 
       {/* Floor accent zones */}
       <FloorAccents />
+
+      {/* Logo on reception south wall — large image display */}
+      <LogoWall />
+
+      {/* Logo panels on north wall + east/west walls — alternate icon/full for 50/50 */}
+      <LogoPanel position={[0,   3.0,  19.72]} rotation={Math.PI}      w={6.0} h={1.6} useIcon={true} />
+      <LogoPanel position={[24.72, 3.0, -5]}   rotation={-Math.PI / 2} w={4.0} h={1.2} useIcon={false} />
+      <LogoPanel position={[-24.72, 3.0, 8]}   rotation={Math.PI / 2}  w={4.0} h={1.2} useIcon={true} />
+
+      {/* Animated lift doors on west wall */}
+      <AnimatedLiftDoor position={[-24.5, 0, -4]} phaseOffset={0} />
+      <AnimatedLiftDoor position={[-24.5, 0, 4]} phaseOffset={7} />
     </>
   );
 }
 
 function FloorGrid() {
+  // Carpet micro-pattern — tight crosshatch, E-W and N-S lines
   const lines = useMemo(() => {
     const geom = new THREE.BufferGeometry();
     const verts: number[] = [];
-    for (let x = -25; x <= 25; x += 2) {
-      verts.push(x, 0.003, -20, x, 0.003, 20);
+    for (let z = -20; z <= 20.01; z += 0.45) {
+      verts.push(-25, 0.004, z, 25, 0.004, z);
     }
-    for (let z = -20; z <= 20; z += 2) {
-      verts.push(-25, 0.003, z, 25, 0.003, z);
+    for (let x = -25; x <= 25.01; x += 0.45) {
+      verts.push(x, 0.004, -20, x, 0.004, 20);
     }
     geom.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
     return geom;
@@ -185,72 +311,43 @@ function FloorGrid() {
 
   return (
     <lineSegments geometry={lines}>
-      <lineBasicMaterial color="#b8bcc0" transparent opacity={0.4} />
+      <lineBasicMaterial color="#1e1c30" transparent opacity={0.18} />
     </lineSegments>
   );
 }
 
 function CeilingSystem() {
-  // White ceiling tiles at y=5.5, LED panels recessed
   const CEIL_Y = 5.5;
-  const tileW = 1.2;
-  const panels = useMemo(() => {
-    const arr: { x: number; z: number }[] = [];
-    // LED panels every 4 units in a grid
-    for (let x = -22; x <= 22; x += 4) {
-      for (let z = -18; z <= 18; z += 4) {
-        arr.push({ x, z });
-      }
-    }
-    return arr;
-  }, []);
 
-  const tilePositions = useMemo(() => {
-    const arr: { x: number; z: number }[] = [];
-    for (let x = -24; x <= 24; x += tileW) {
-      for (let z = -19; z <= 19; z += tileW) {
-        arr.push({ x, z });
-      }
-    }
+  // Long LED strip positions — one strip per Z row, running full E-W width
+  const strips = useMemo(() => {
+    const arr: number[] = [];
+    for (let z = -18; z <= 18.01; z += 2.2) arr.push(z);
     return arr;
   }, []);
 
   return (
     <group>
-      {/* Main white ceiling plane */}
+      {/* Main ceiling plane — clean white */}
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, CEIL_Y, 0]}>
         <planeGeometry args={[50, 40]} />
-        <meshStandardMaterial color="#dde4f0" roughness={0.85} />
+        <meshStandardMaterial color="#f0f0f8" roughness={0.9} />
       </mesh>
 
-      {/* Ceiling tile grid lines */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, CEIL_Y - 0.01, 0]}>
-        <planeGeometry args={[50, 40]} />
-        <meshStandardMaterial color="#c8d0e8" roughness={0.9} wireframe={false} transparent opacity={0.0} />
-      </mesh>
-
-      {/* Recessed LED panels */}
-      {panels.map((p, i) => (
-        <group key={i}>
-          {/* LED panel recess */}
-          <mesh rotation={[Math.PI / 2, 0, 0]} position={[p.x, CEIL_Y - 0.04, p.z]}>
-            <planeGeometry args={[1.8, 0.6]} />
-            <meshStandardMaterial
-              color="#ffffff"
-              emissive="#d8e8ff"
-              emissiveIntensity={0.9}
-              roughness={0.1}
-            />
+      {/* LED strip housings + emissive diffusers — full ceiling width, modern JP Morgan style */}
+      {strips.map((z, i) => (
+        <group key={i} position={[0, CEIL_Y - 0.03, z]}>
+          {/* Aluminum housing channel */}
+          <mesh>
+            <boxGeometry args={[48, 0.06, 0.14]} />
+            <meshStandardMaterial color="#3a3a50" roughness={0.3} metalness={0.8} />
+          </mesh>
+          {/* Emissive LED diffuser strip — faces downward */}
+          <mesh position={[0, -0.04, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[48, 0.10]} />
+            <meshStandardMaterial color="#ffffff" emissive="#ddeeff" emissiveIntensity={1.8} roughness={0.05} />
           </mesh>
         </group>
-      ))}
-
-      {/* Ceiling tile dividers — subtle grey lines */}
-      {tilePositions.slice(0, 400).map((t, i) => (
-        <mesh key={i} rotation={[Math.PI / 2, 0, 0]} position={[t.x, CEIL_Y - 0.005, t.z]}>
-          <planeGeometry args={[tileW, tileW]} />
-          <meshStandardMaterial color="#c8d2e8" roughness={0.9} wireframe={true} transparent opacity={0.12} />
-        </mesh>
       ))}
     </group>
   );
@@ -378,51 +475,236 @@ function AllGlassWalls() {
 function InternalPartitions() {
   return (
     <group>
-      {/* Lift lobby glass partition — separates lobby from main floor */}
-      {[-8, -4, 0, 4, 8].map((z, i) => (
-        <group key={i}>
-          <GlassPanel x={-18} y={2.75} z={z} w={0.06} h={5.5} d={3.8} tint="#8090d0" opacity={0.12} />
+      {/* Lift lobby glass partition — 3 gate openings (each 0.9m wide) at z=-2.7, 0, +2.7 */}
+      {/* South section: z=-9 to z=-3.15 */}
+      {[-8, -4].map((z, i) => (
+        <group key={`ls${i}`}>
+          <GlassPanel x={-18} y={2.75} z={z} w={0.06} h={5.5} d={3.8} tint="#8090d0" opacity={0.14} />
           <MullionV x={-18} y={2.75} z={z + 2} h={5.5} />
         </group>
       ))}
-      {/* Lobby door opening at z=0 — gap in partition (no glass at z=-1 to z=1) */}
+      {/* Gate gap sections — thin half-panels with gate post between */}
+      {[-2.7, 0, 2.7].map((z, i) => (
+        <group key={`gate${i}`}>
+          {/* Gate post */}
+          <mesh position={[-18, 1.0, z]}>
+            <boxGeometry args={[0.12, 2.0, 0.12]} />
+            <meshStandardMaterial color="#2a2a3a" roughness={0.2} metalness={0.85} />
+          </mesh>
+          {/* Card reader on post */}
+          <mesh position={[-17.88, 1.1, z]}>
+            <boxGeometry args={[0.06, 0.18, 0.1]} />
+            <meshStandardMaterial color="#0a0a18" roughness={0.2} metalness={0.6} />
+          </mesh>
+          <mesh position={[-17.85, 1.1, z]}>
+            <boxGeometry args={[0.02, 0.08, 0.07]} />
+            <meshStandardMaterial color="#10b981" emissive="#10b981" emissiveIntensity={1.2} />
+          </mesh>
+          {/* Horizontal gate arm (barrier) */}
+          <mesh position={[-17.8, 0.88, z + 0.4]}>
+            <boxGeometry args={[0.04, 0.025, 0.7]} />
+            <meshStandardMaterial color="#1a4a8a" emissive="#1a4a8a" emissiveIntensity={0.5} />
+          </mesh>
+        </group>
+      ))}
+      {/* North section: z=3.15 to z=9 */}
+      {[4, 8].map((z, i) => (
+        <group key={`ln${i}`}>
+          <GlassPanel x={-18} y={2.75} z={z} w={0.06} h={5.5} d={3.8} tint="#8090d0" opacity={0.14} />
+          <MullionV x={-18} y={2.75} z={z + 2} h={5.5} />
+        </group>
+      ))}
+      {/* Glass partial panel above gates (top 3m, above head height) */}
+      <GlassPanel x={-18} y={4.5} z={0} w={0.06} h={2.0} d={6} tint="#8090d0" opacity={0.10} />
 
       {/* Executive suite glass partition */}
       {[-8, -4, 0].map((z, i) => (
-        <group key={i}>
+        <group key={`ex${i}`}>
           <GlassPanel x={14} y={2.75} z={z} w={0.06} h={5.5} d={3.8} tint="#8090d0" opacity={0.1} />
           <MullionV x={14} y={2.75} z={z + 2} h={5.5} />
         </group>
       ))}
 
-      {/* Low partition — compliance boundary */}
-      <mesh position={[-5, 0.75, 10]}>
-        <boxGeometry args={[6, 1.5, 0.1]} />
-        <meshStandardMaterial color="#1e2035" roughness={0.6} />
-      </mesh>
+      {/* Low partition removed — was blocking Priya's glass room door */}
     </group>
   );
 }
 
-function GlassRoom({ cx, cz, w, d, label, color = "#8090d0" }: {
+function GlassRoom({ cx, cz, w, d, label, color = "#8090d0", doorId, doorSide = "south" }: {
   cx: number; cz: number; w: number; d: number; label?: string; color?: string;
+  doorId?: string; doorSide?: "south" | "north";
 }) {
   const CEIL = 5.5;
-  const walls = [
-    { pos: [0, CEIL / 2, -d / 2] as [number,number,number], args: [w, CEIL, 0.07] as [number,number,number], panels: w },
-    { pos: [0, CEIL / 2, d / 2] as [number,number,number], args: [w, CEIL, 0.07] as [number,number,number], panels: w },
-    { pos: [-w / 2, CEIL / 2, 0] as [number,number,number], args: [0.07, CEIL, d] as [number,number,number], panels: d },
-    { pos: [w / 2, CEIL / 2, 0] as [number,number,number], args: [0.07, CEIL, d] as [number,number,number], panels: d },
-  ];
+  const DOOR_H = 2.6;  // human-scale door height — character is ~1.8 m
+  const DOOR_W = 1.5;
+  const openDoors = useGameStore(s => s.openDoors);
+  const nearbyDoor = useGameStore(s => s.nearbyDoor);
+  const isOpen = doorId ? openDoors.includes(doorId) : false;
+  // Hinge on left post; 0.15 rad ≈ slightly ajar when closed, PI/2 = fully open into room
+  const doorRotY = isOpen ? Math.PI / 2 : 0.15;
+  const sideW = (w - DOOR_W) / 2;
+  // For north-side door, the hinge opens outward (-Z direction)
+  const northDoorRotY = isOpen ? -Math.PI / 2 : -0.15;
 
   return (
     <group position={[cx, 0, cz]}>
-      {walls.map((wall, i) => (
-        <mesh key={i} position={wall.pos}>
-          <boxGeometry args={wall.args} />
+      {/* North wall — full width, or with door if doorSide='north' */}
+      {doorId && doorSide === "north" ? (
+        <>
+          <mesh position={[-(DOOR_W / 2 + sideW / 2), CEIL / 2, d / 2]}>
+            <boxGeometry args={[sideW, CEIL, 0.07]} />
+            <meshStandardMaterial color={color} transparent opacity={0.12} roughness={0} metalness={0.05} />
+          </mesh>
+          <mesh position={[(DOOR_W / 2 + sideW / 2), CEIL / 2, d / 2]}>
+            <boxGeometry args={[sideW, CEIL, 0.07]} />
+            <meshStandardMaterial color={color} transparent opacity={0.12} roughness={0} metalness={0.05} />
+          </mesh>
+          <mesh position={[-DOOR_W / 2, CEIL / 2, d / 2]}>
+            <boxGeometry args={[0.1, CEIL, 0.14]} />
+            <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
+          </mesh>
+          <mesh position={[DOOR_W / 2, CEIL / 2, d / 2]}>
+            <boxGeometry args={[0.1, CEIL, 0.14]} />
+            <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
+          </mesh>
+          {/* Transom glass above door opening */}
+          <mesh position={[0, DOOR_H + (CEIL - DOOR_H) / 2, d / 2]}>
+            <boxGeometry args={[DOOR_W, CEIL - DOOR_H, 0.07]} />
+            <meshStandardMaterial color={color} transparent opacity={0.12} roughness={0} metalness={0.05} />
+          </mesh>
+          {/* Transom bar */}
+          <mesh position={[0, DOOR_H, d / 2]}>
+            <boxGeometry args={[DOOR_W + 0.12, 0.06, 0.1]} />
+            <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
+          </mesh>
+          <group position={[-DOOR_W / 2, DOOR_H / 2, d / 2]} rotation={[0, northDoorRotY, 0]}>
+            <mesh position={[DOOR_W / 2, 0, 0]}>
+              <boxGeometry args={[DOOR_W, DOOR_H, 0.06]} />
+              <meshStandardMaterial color="#b8d4f0" transparent opacity={isOpen ? 0.12 : 0.58}
+                roughness={0.02} metalness={0.15} />
+            </mesh>
+            <mesh position={[DOOR_W / 2, DOOR_H / 2 - 0.04, 0]}>
+              <boxGeometry args={[DOOR_W + 0.04, 0.06, 0.09]} />
+              <meshStandardMaterial color="#8090b0" roughness={0.2} metalness={0.8} />
+            </mesh>
+            <mesh position={[DOOR_W / 2, -DOOR_H / 2 + 0.04, 0]}>
+              <boxGeometry args={[DOOR_W + 0.04, 0.06, 0.09]} />
+              <meshStandardMaterial color="#8090b0" roughness={0.2} metalness={0.8} />
+            </mesh>
+            <mesh position={[0.04, 0, 0]}>
+              <boxGeometry args={[0.06, DOOR_H, 0.09]} />
+              <meshStandardMaterial color="#8090b0" roughness={0.2} metalness={0.8} />
+            </mesh>
+            <mesh position={[DOOR_W - 0.02, 0, 0]}>
+              <boxGeometry args={[0.06, DOOR_H, 0.09]} />
+              <meshStandardMaterial color="#8090b0" roughness={0.2} metalness={0.8} />
+            </mesh>
+            <mesh position={[DOOR_W - 0.24, -0.14, 0.06]}>
+              <boxGeometry args={[0.22, 0.04, 0.04]} />
+              <meshStandardMaterial color="#c0c8d8" roughness={0.1} metalness={0.95} />
+            </mesh>
+            <mesh position={[DOOR_W - 0.13, -0.16, 0.06]}>
+              <boxGeometry args={[0.04, 0.18, 0.04]} />
+              <meshStandardMaterial color="#c0c8d8" roughness={0.1} metalness={0.95} />
+            </mesh>
+          </group>
+        </>
+      ) : (
+        <mesh position={[0, CEIL / 2, d / 2]}>
+          <boxGeometry args={[w, CEIL, 0.07]} />
           <meshStandardMaterial color={color} transparent opacity={0.12} roughness={0} metalness={0.05} />
         </mesh>
-      ))}
+      )}
+      {/* West wall */}
+      <mesh position={[-w / 2, CEIL / 2, 0]}>
+        <boxGeometry args={[0.07, CEIL, d]} />
+        <meshStandardMaterial color={color} transparent opacity={0.12} roughness={0} metalness={0.05} />
+      </mesh>
+      {/* East wall */}
+      <mesh position={[w / 2, CEIL / 2, 0]}>
+        <boxGeometry args={[0.07, CEIL, d]} />
+        <meshStandardMaterial color={color} transparent opacity={0.12} roughness={0} metalness={0.05} />
+      </mesh>
+
+      {/* South wall — with door opening if doorId provided and doorSide='south' */}
+      {doorId && doorSide === "south" ? (
+        <>
+          {/* Left glass panel */}
+          <mesh position={[-(DOOR_W / 2 + sideW / 2), CEIL / 2, -d / 2]}>
+            <boxGeometry args={[sideW, CEIL, 0.07]} />
+            <meshStandardMaterial color={color} transparent opacity={0.12} roughness={0} metalness={0.05} />
+          </mesh>
+          {/* Right glass panel */}
+          <mesh position={[(DOOR_W / 2 + sideW / 2), CEIL / 2, -d / 2]}>
+            <boxGeometry args={[sideW, CEIL, 0.07]} />
+            <meshStandardMaterial color={color} transparent opacity={0.12} roughness={0} metalness={0.05} />
+          </mesh>
+          {/* Left door post */}
+          <mesh position={[-DOOR_W / 2, CEIL / 2, -d / 2]}>
+            <boxGeometry args={[0.1, CEIL, 0.14]} />
+            <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
+          </mesh>
+          {/* Right door post */}
+          <mesh position={[DOOR_W / 2, CEIL / 2, -d / 2]}>
+            <boxGeometry args={[0.1, CEIL, 0.14]} />
+            <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
+          </mesh>
+          {/* Transom glass above door opening */}
+          <mesh position={[0, DOOR_H + (CEIL - DOOR_H) / 2, -d / 2]}>
+            <boxGeometry args={[DOOR_W, CEIL - DOOR_H, 0.07]} />
+            <meshStandardMaterial color={color} transparent opacity={0.12} roughness={0} metalness={0.05} />
+          </mesh>
+          {/* Transom bar */}
+          <mesh position={[0, DOOR_H, -d / 2]}>
+            <boxGeometry args={[DOOR_W + 0.12, 0.06, 0.1]} />
+            <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
+          </mesh>
+          {/* Door panel — hinges at left post, swings inward (+Z) when open */}
+          <group position={[-DOOR_W / 2, DOOR_H / 2, -d / 2]} rotation={[0, doorRotY, 0]}>
+            {/* Door glass */}
+            <mesh position={[DOOR_W / 2, 0, 0]}>
+              <boxGeometry args={[DOOR_W, DOOR_H, 0.06]} />
+              <meshStandardMaterial color="#b8d4f0" transparent opacity={isOpen ? 0.12 : 0.58}
+                roughness={0.02} metalness={0.15} />
+            </mesh>
+            {/* Door frame — top */}
+            <mesh position={[DOOR_W / 2, DOOR_H / 2 - 0.04, 0]}>
+              <boxGeometry args={[DOOR_W + 0.04, 0.06, 0.09]} />
+              <meshStandardMaterial color="#8090b0" roughness={0.2} metalness={0.8} />
+            </mesh>
+            {/* Door frame — bottom */}
+            <mesh position={[DOOR_W / 2, -DOOR_H / 2 + 0.04, 0]}>
+              <boxGeometry args={[DOOR_W + 0.04, 0.06, 0.09]} />
+              <meshStandardMaterial color="#8090b0" roughness={0.2} metalness={0.8} />
+            </mesh>
+            {/* Door frame — hinge side */}
+            <mesh position={[0.04, 0, 0]}>
+              <boxGeometry args={[0.06, DOOR_H, 0.09]} />
+              <meshStandardMaterial color="#8090b0" roughness={0.2} metalness={0.8} />
+            </mesh>
+            {/* Door frame — latch side */}
+            <mesh position={[DOOR_W - 0.02, 0, 0]}>
+              <boxGeometry args={[0.06, DOOR_H, 0.09]} />
+              <meshStandardMaterial color="#8090b0" roughness={0.2} metalness={0.8} />
+            </mesh>
+            {/* Door handle — lever bar */}
+            <mesh position={[DOOR_W - 0.24, -0.14, 0.06]}>
+              <boxGeometry args={[0.22, 0.04, 0.04]} />
+              <meshStandardMaterial color="#c0c8d8" roughness={0.1} metalness={0.95} />
+            </mesh>
+            <mesh position={[DOOR_W - 0.13, -0.16, 0.06]}>
+              <boxGeometry args={[0.04, 0.18, 0.04]} />
+              <meshStandardMaterial color="#c0c8d8" roughness={0.1} metalness={0.95} />
+            </mesh>
+          </group>
+        </>
+      ) : (
+        <mesh position={[0, CEIL / 2, -d / 2]}>
+          <boxGeometry args={[w, CEIL, 0.07]} />
+          <meshStandardMaterial color={color} transparent opacity={0.12} roughness={0} metalness={0.05} />
+        </mesh>
+      )}
+
       {/* Top frame */}
       {[
         [0, CEIL - 0.03, -d / 2, w, 0.07, 0.1],
@@ -435,22 +717,30 @@ function GlassRoom({ cx, cz, w, d, label, color = "#8090d0" }: {
           <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
         </mesh>
       ))}
-      {/* Door frame */}
-      <mesh position={[-w / 2, CEIL / 2, 0]}>
-        <boxGeometry args={[0.1, CEIL, 0.1]} />
-        <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
-      </mesh>
-      {/* Door glass panel */}
-      <mesh position={[-w / 2 + 0.05, CEIL / 2 - 0.5, 0]}>
-        <boxGeometry args={[0.04, CEIL - 0.5, 1.8]} />
-        <meshStandardMaterial color={color} transparent opacity={0.15} roughness={0} />
-      </mesh>
 
       {label && (
         <Text position={[0, CEIL + 0.2, 0]} fontSize={0.18} color={color}
           anchorX="center" anchorY="middle" letterSpacing={0.08}>
           {label}
         </Text>
+      )}
+
+      {/* Floating [T] hint — eye-level, camera-facing, visible only when player is close */}
+      {doorId && nearbyDoor === doorId && (
+        <group position={[0, 1.2, doorSide === "south" ? -d / 2 - 0.15 : d / 2 + 0.15]}>
+          <Billboard>
+            <Text
+              fontSize={0.22}
+              color={isOpen ? "#4ade80" : "#60a5fa"}
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.02}
+              outlineColor="#000000"
+            >
+              {isOpen ? "[T] Close" : "[T] Open"}
+            </Text>
+          </Billboard>
+        </group>
       )}
     </group>
   );
@@ -461,7 +751,8 @@ function BoardroomGlass() {
   const cx = 13, cz = -14.5;
   return (
     <group>
-      <GlassRoom cx={cx} cz={cz} w={10} d={8.5} label="BOARDROOM" color="#8090d0" />
+      <GlassRoom cx={cx} cz={cz} w={10} d={8.5} label="BOARDROOM" color="#8090d0"
+        doorId="door_boardroom" doorSide="north" />
       {/* Conference table */}
       <mesh position={[cx, 0.78, cz]}>
         <boxGeometry args={[6, 0.09, 2.5]} />
@@ -501,54 +792,105 @@ function BoardroomGlass() {
 
 function HuddleRoomA() {
   // Engineering side: x=8..14, z=7..14 (cx=11, cz=10.5, w=6, d=7)
+  // Furniture rendered by SmallMeetingRoom in OfficeProps
   const cx = 11, cz = 10.5;
   return (
     <group>
-      <GlassRoom cx={cx} cz={cz} w={6} d={7} label="HUDDLE A" color="#0ea5e9" />
-      {/* Small round table */}
-      <mesh position={[cx, 0.74, cz]}>
-        <cylinderGeometry args={[1.0, 1.0, 0.08, 12]} />
-        <meshStandardMaterial color="#151530" roughness={0.3} metalness={0.3} />
-      </mesh>
-      {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((angle, i) => (
-        <group key={i} position={[cx + Math.cos(angle) * 1.5, 0, cz + Math.sin(angle) * 1.5]}>
-          <mesh position={[0, 0.44, 0]}><boxGeometry args={[0.38, 0.07, 0.38]} /><meshStandardMaterial color="#1e1e3a" roughness={0.8} /></mesh>
-          <mesh position={[0, 0.7, Math.sin(angle + Math.PI) * 0.17]}>
-            <boxGeometry args={[0.36, 0.46, 0.06]} />
-            <meshStandardMaterial color="#1e1e3a" roughness={0.8} />
-          </mesh>
-        </group>
-      ))}
-      {/* Whiteboard */}
-      <mesh position={[cx + 3.1, 2.5, cz]}>
-        <boxGeometry args={[0.05, 1.5, 2.4]} />
-        <meshStandardMaterial color="#ece8e0" roughness={0.3} />
-      </mesh>
+      <GlassRoom cx={cx} cz={cz} w={6} d={7} label="ENGINEERING SYNC" color="#0ea5e9" doorId="door_eng" />
     </group>
   );
 }
 
 function HuddleRoomB() {
   // Compliance side: x=-7..2, z=10..18 (cx=-2.5, cz=14, w=9, d=8)
+  // Furniture rendered by SmallMeetingRoom in OfficeProps
   const cx = -2.5, cz = 14;
   return (
     <group>
-      <GlassRoom cx={cx} cz={cz} w={9} d={8} label="COMPLIANCE ROOM" color="#10b981" />
-      {/* Rectangular table */}
-      <mesh position={[cx, 0.78, cz]}>
-        <boxGeometry args={[4.5, 0.09, 1.8]} />
-        <meshStandardMaterial color="#151530" roughness={0.25} metalness={0.3} />
+      <GlassRoom cx={cx} cz={cz} w={9} d={8} label="COMPLIANCE REVIEW" color="#10b981" doorId="door_compliance" />
+    </group>
+  );
+}
+
+// ── Server room glass enclosure ───────────────────────────────────────────────
+// Server room occupies x=20..24.5, z=7..19.5. West wall faces main office —
+// that's where the visual (non-interactive) door sits.
+function ServerRoomGlass() {
+  const CEIL = 5.5;
+  const DOOR_H = 2.6;
+  const DOOR_W = 1.5;
+  const color = "#80a0c8";
+  // Room dimensions (local coords, group positioned at center)
+  const w = 4.5, d = 12.5;         // east-west width, north-south depth
+  const sideD = (d - DOOR_W) / 2;  // glass panel height on each side of door gap
+
+  return (
+    <group position={[22.25, 0, 13.25]}>
+      {/* South wall */}
+      <mesh position={[0, CEIL / 2, -d / 2]}>
+        <boxGeometry args={[w, CEIL, 0.07]} />
+        <meshStandardMaterial color={color} transparent opacity={0.13} roughness={0} metalness={0.05} />
       </mesh>
-      {[-1.8, -0.6, 0.6, 1.8].flatMap((x, i) => [
-        <group key={`ca${i}`} position={[cx + x, 0, cz - 1.3]}>
-          <mesh position={[0, 0.44, 0]}><boxGeometry args={[0.4, 0.07, 0.4]} /><meshStandardMaterial color="#1e1e3a" roughness={0.8} /></mesh>
-          <mesh position={[0, 0.7, 0.19]}><boxGeometry args={[0.38, 0.46, 0.06]} /><meshStandardMaterial color="#1e1e3a" roughness={0.8} /></mesh>
-        </group>,
-        <group key={`cb${i}`} position={[cx + x, 0, cz + 1.3]}>
-          <mesh position={[0, 0.44, 0]}><boxGeometry args={[0.4, 0.07, 0.4]} /><meshStandardMaterial color="#1e1e3a" roughness={0.8} /></mesh>
-          <mesh position={[0, 0.7, -0.19]}><boxGeometry args={[0.38, 0.46, 0.06]} /><meshStandardMaterial color="#1e1e3a" roughness={0.8} /></mesh>
-        </group>,
-      ])}
+      {/* North wall */}
+      <mesh position={[0, CEIL / 2, d / 2]}>
+        <boxGeometry args={[w, CEIL, 0.07]} />
+        <meshStandardMaterial color={color} transparent opacity={0.13} roughness={0} metalness={0.05} />
+      </mesh>
+      {/* East wall (inner face of outer glass wall — keep thin so it doesn't double-up) */}
+      <mesh position={[w / 2, CEIL / 2, 0]}>
+        <boxGeometry args={[0.07, CEIL, d]} />
+        <meshStandardMaterial color={color} transparent opacity={0.08} roughness={0} metalness={0.05} />
+      </mesh>
+      {/* West wall — south panel (below door) */}
+      <mesh position={[-w / 2, CEIL / 2, -(DOOR_W / 2 + sideD / 2)]}>
+        <boxGeometry args={[0.07, CEIL, sideD]} />
+        <meshStandardMaterial color={color} transparent opacity={0.13} roughness={0} metalness={0.05} />
+      </mesh>
+      {/* West wall — north panel (above door) */}
+      <mesh position={[-w / 2, CEIL / 2, (DOOR_W / 2 + sideD / 2)]}>
+        <boxGeometry args={[0.07, CEIL, sideD]} />
+        <meshStandardMaterial color={color} transparent opacity={0.13} roughness={0} metalness={0.05} />
+      </mesh>
+      {/* Door posts */}
+      <mesh position={[-w / 2, CEIL / 2, -DOOR_W / 2]}>
+        <boxGeometry args={[0.14, CEIL, 0.10]} />
+        <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
+      </mesh>
+      <mesh position={[-w / 2, CEIL / 2, DOOR_W / 2]}>
+        <boxGeometry args={[0.14, CEIL, 0.10]} />
+        <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
+      </mesh>
+      {/* Transom glass above door */}
+      <mesh position={[-w / 2, DOOR_H + (CEIL - DOOR_H) / 2, 0]}>
+        <boxGeometry args={[0.07, CEIL - DOOR_H, DOOR_W]} />
+        <meshStandardMaterial color={color} transparent opacity={0.13} roughness={0} metalness={0.05} />
+      </mesh>
+      {/* Transom bar */}
+      <mesh position={[-w / 2, DOOR_H, 0]}>
+        <boxGeometry args={[0.10, 0.06, DOOR_W + 0.12]} />
+        <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
+      </mesh>
+      {/* Static door glass panel */}
+      <mesh position={[-w / 2, DOOR_H / 2, 0]}>
+        <boxGeometry args={[0.06, DOOR_H, DOOR_W]} />
+        <meshStandardMaterial color="#b8d4f0" transparent opacity={0.55} roughness={0.02} metalness={0.15} />
+      </mesh>
+      {/* Top frame rail */}
+      {[
+        [0, CEIL - 0.03, -d / 2, w, 0.07, 0.10],
+        [0, CEIL - 0.03,  d / 2, w, 0.07, 0.10],
+        [-w / 2, CEIL - 0.03, 0, 0.10, 0.07, d],
+        [ w / 2, CEIL - 0.03, 0, 0.10, 0.07, d],
+      ].map((p, i) => (
+        <mesh key={`sr${i}`} position={p.slice(0, 3) as [number, number, number]}>
+          <boxGeometry args={p.slice(3) as [number, number, number]} />
+          <meshStandardMaterial color="#a0a8c0" roughness={0.3} metalness={0.7} />
+        </mesh>
+      ))}
+      <Text position={[0, CEIL + 0.2, 0]} fontSize={0.18} color={color}
+        anchorX="center" anchorY="middle" letterSpacing={0.08}>
+        SERVER ROOM
+      </Text>
     </group>
   );
 }

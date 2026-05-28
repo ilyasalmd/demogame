@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "@/store/gameStore";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { DecisionOption } from "@/game/types";
-import { speakLine, stopSpeech, initVoices } from "@/game/voiceSynthesis";
+import { speakLine, stopSpeech, initVoices, isSpeechBlocked } from "@/game/voiceSynthesis";
+import { CHARACTERS } from "@/game/data";
 
 const CHARACTER_META: Record<string, { color: string; icon: string; npcId: string; role: string }> = {
   "maya chen":    { color: "#6366f1", icon: "MC", npcId: "maya",  role: "Data Scientist" },
@@ -41,16 +42,44 @@ const REVIEW_TAG_LABELS = {
   critical: "Critical",
 };
 
+// Characters with a real photo portrait (file must exist in /public/)
+const PHOTO_PORTRAITS: Record<string, string> = {
+  receptionist: "/receptionist.png",
+};
+
 function CharacterPortrait({ npcId, color }: { npcId: string; color: string }) {
+  const photoUrl = PHOTO_PORTRAITS[npcId];
+
+  if (photoUrl) {
+    return (
+      <div
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: "14px",
+          overflow: "hidden",
+          background: "#0a0a18",
+          display: "block",
+          border: `2px solid ${color}55`,
+        }}
+      >
+        <img
+          src={photoUrl}
+          alt={npcId}
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 10%" }}
+        />
+      </div>
+    );
+  }
+
   const portraits: Record<string, { skin: string; hair: string; female: boolean }> = {
-    maya:         { skin: "#f3c5a0", hair: "#1a0800", female: true },
-    theo:         { skin: "#d4a574", hair: "#4a2800", female: false },
-    oliver:       { skin: "#fdbcb4", hair: "#8b5e0a", female: false },
-    priya:        { skin: "#c8a882", hair: "#0a0404", female: true },
-    amara:        { skin: "#8d5524", hair: "#0a0404", female: true },
-    receptionist: { skin: "#fdbcb4", hair: "#4a2800", female: false },
-    dashboard:    { skin: "#7090b0", hair: "#203060", female: false },
-    system:       { skin: "#8090a8", hair: "#304060", female: false },
+    maya:      { skin: "#f3c5a0", hair: "#1a0800", female: true },
+    theo:      { skin: "#d4a574", hair: "#4a2800", female: false },
+    oliver:    { skin: "#fdbcb4", hair: "#8b5e0a", female: false },
+    priya:     { skin: "#c8a882", hair: "#0a0404", female: true },
+    amara:     { skin: "#8d5524", hair: "#0a0404", female: true },
+    dashboard: { skin: "#7090b0", hair: "#203060", female: false },
+    system:    { skin: "#8090a8", hair: "#304060", female: false },
   };
   const p = portraits[npcId] ?? { skin: "#d4a574", hair: "#3a2010", female: false };
   const darker = color + "88";
@@ -97,18 +126,18 @@ export function DialoguePanel() {
   const speakerName = currentLine?.speaker ?? dialogueCharacter;
   const meta = getMeta(speakerName);
 
-  // Typewriter + voice
+  // Instant text + voice
   useEffect(() => {
     initVoices();
     if (!currentLine) { setDisplayedText(""); setIsTyping(false); return; }
-    if (typingRef.current) clearInterval(typingRef.current);
 
     completedRef.current = false;
-    setIsTyping(true);
-    setDisplayedText("");
     const text = currentLine.text;
 
-    speakLine(text, meta.npcId);
+    const charData = CHARACTERS.find(c => c.id === meta.npcId);
+    const speechRate = charData?.speechRate ?? 1.0;
+
+    speakLine(text, meta.npcId, speechRate);
 
     if (prevNpcIdRef.current && prevNpcIdRef.current !== meta.npcId) {
       setSpeechBubble(prevNpcIdRef.current, "");
@@ -119,20 +148,14 @@ export function DialoguePanel() {
       setSpeechBubble(meta.npcId, currentLine.text);
     }
 
-    let i = 0;
-    typingRef.current = setInterval(() => {
-      if (i < text.length) {
-        setDisplayedText(text.slice(0, i + 1));
-        i++;
-      } else {
-        if (typingRef.current) clearInterval(typingRef.current);
-        setIsTyping(false);
-        completedRef.current = true;
-        if (activeDialogue?.autoAdvance) setTimeout(() => advanceDialogue(), 1200);
-      }
-    }, 20);
+    setDisplayedText(text);
+    setIsTyping(false);
+    completedRef.current = true;
 
-    return () => { if (typingRef.current) clearInterval(typingRef.current); };
+    if (activeDialogue?.autoAdvance) {
+      const t = setTimeout(() => advanceDialogue(), 1200);
+      return () => clearTimeout(t);
+    }
   }, [currentLine?.text, dialogueStep]);
 
   useEffect(() => {
@@ -149,15 +172,11 @@ export function DialoguePanel() {
   }, []);
 
   const skipOrAdvance = useCallback(() => {
-    if (isTyping) {
-      if (typingRef.current) clearInterval(typingRef.current);
-      setDisplayedText(currentLine?.text ?? "");
-      setIsTyping(false);
-      completedRef.current = true;
-    } else if (!showOptions && completedRef.current) {
+    if (!showOptions && completedRef.current && !isSpeechBlocked()) {
+      stopSpeech();      // cut current audio immediately
       advanceDialogue();
     }
-  }, [isTyping, showOptions, currentLine, advanceDialogue]);
+  }, [showOptions, advanceDialogue]);
 
   useEffect(() => {
     if (!activeDialogue) return;
@@ -178,37 +197,44 @@ export function DialoguePanel() {
   if (!activeDialogue) return null;
 
   return (
-    <AnimatePresence>
-      {!isTyping && !showOptions && activeDialogue && (
-        <motion.div
-          className="fixed bottom-[10.5rem] left-1/2 -translate-x-1/2 z-50 pointer-events-none"
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-        >
-          <div
-            style={{
-              background: "#ffffff",
-              color: "#000000",
-              padding: "8px 20px",
-              borderRadius: "4px",
-              fontFamily: '"Press Start 2P", "Courier New", monospace',
-              fontSize: "11px",
-              letterSpacing: "1px",
-              boxShadow: "3px 3px 0 #888888",
-              border: "2px solid #888888",
-            }}
+    <>
+      {/* Space hint — in its own AnimatePresence so it never interferes with panel positioning */}
+      <AnimatePresence>
+        {!isTyping && !showOptions && activeDialogue && (
+          <motion.div
+            key="space-hint"
+            className="fixed z-50 pointer-events-none"
+            style={{ bottom: "10.5rem", left: "50%", transform: "translateX(-50%)" }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.15 }}
           >
-            ▼ SPACE
-          </div>
-        </motion.div>
-      )}
+            <div
+              style={{
+                background: "#ffffff",
+                color: "#000000",
+                padding: "8px 20px",
+                borderRadius: "4px",
+                fontFamily: '"Press Start 2P", "Courier New", monospace',
+                fontSize: "11px",
+                letterSpacing: "1px",
+                boxShadow: "3px 3px 0 #888888",
+                border: "2px solid #888888",
+              }}
+            >
+              ▼ SPACE
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <motion.div
+        key="dialogue-panel"
         className="fixed inset-x-0 bottom-0 z-40 pointer-events-auto"
-        initial={{ opacity: 0, y: 60 }}
+        initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 60 }}
-        transition={{ type: "spring", damping: 28, stiffness: 300 }}
+        exit={{ opacity: 0, y: 40 }}
+        transition={{ duration: 0.16, ease: "easeOut" }}
       >
         <div
           className="relative"
@@ -303,7 +329,7 @@ export function DialoguePanel() {
           )}
         </div>
       </motion.div>
-    </AnimatePresence>
+    </>
   );
 }
 

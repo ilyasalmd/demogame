@@ -69,6 +69,7 @@ export interface CharacterDef {
   floor: 0 | 1;
   requiredStage?: IncidentStage;
   interactStage?: IncidentStage;
+  speechRate?: number;
 }
 
 export interface TelemetryEvent {

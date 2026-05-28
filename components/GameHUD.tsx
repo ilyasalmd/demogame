@@ -8,9 +8,12 @@ export function GameHUD() {
     objectiveText,
     timeRemaining,
     nearbyInteractable,
+    nearbyDoor,
+    openDoors,
     showObjectivePanel,
     toggleObjectivePanel,
     toggleCameraMode,
+    toggleDoor,
     cameraMode,
     stage,
     interact,
@@ -18,24 +21,14 @@ export function GameHUD() {
     interactionsCompleted,
     zonesVisited,
     scores,
+    activeDialogue,
+    dialogueCharacter,
   } = useGameStore();
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [isLocked, setIsLocked] = useState(false);
   const [showControls, setShowControls] = useState(true);
 
-  // Track pointer lock state for the hint
-  useEffect(() => {
-    const onChange = () => setIsLocked(!!document.pointerLockElement);
-    document.addEventListener("pointerlockchange", onChange);
-    return () => document.removeEventListener("pointerlockchange", onChange);
-  }, []);
-
-  // Auto-hide controls hint after 10 s
-  useEffect(() => {
-    const t = setTimeout(() => setShowControls(false), 10000);
-    return () => clearTimeout(t);
-  }, []);
+  const isReceptionistSpeaking = !!(activeDialogue && dialogueCharacter === "receptionist");
 
   useEffect(() => {
     if (stage === "ending" || stage === "review") return;
@@ -54,13 +47,14 @@ export function GameHUD() {
         toggleObjectivePanel();
       }
       if (e.key.toLowerCase() === "v") toggleCameraMode();
+      if (e.key.toLowerCase() === "h") setShowControls((prev) => !prev);
       if (e.key.toLowerCase() === "e" && nearbyInteractable) {
         interact(nearbyInteractable);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [nearbyInteractable, toggleObjectivePanel, toggleCameraMode, interact]);
+  }, [nearbyInteractable, toggleObjectivePanel, toggleCameraMode, interact, nearbyDoor, toggleDoor]);
 
   const minutes = Math.floor(timeRemaining / 60);
   const seconds = timeRemaining % 60;
@@ -87,7 +81,38 @@ export function GameHUD() {
         </motion.div>
       </div>
 
-      {/* Top-right: Timer + Controls */}
+      {/* Top-center: SPACE hint during receptionist speech */}
+      <AnimatePresence>
+        {isReceptionistSpeaking && (
+          <motion.div
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div
+              className="flex items-center gap-2 px-4 py-2 rounded-lg"
+              style={{
+                background: "#ffffff",
+                border: "2px solid #000000",
+              }}
+            >
+              <span
+                className="text-sm font-mono font-bold tracking-widest"
+                style={{ color: "#000000", fontFamily: "monospace" }}
+              >
+                SPACE
+              </span>
+              <span className="text-xs font-mono" style={{ color: "#333333" }}>
+                to continue
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Top-right: Timer + H hint + Tab/V buttons */}
       <div className="fixed top-4 right-4 z-30 flex flex-col items-end gap-2">
         <motion.div
           className="rounded-xl px-4 py-3 text-right"
@@ -101,12 +126,26 @@ export function GameHUD() {
           transition={{ delay: 0.5 }}
         >
           <p className="text-xs font-mono text-slate-500 uppercase tracking-widest mb-1">Time</p>
-          <p
-            className={`text-2xl font-mono font-bold tabular-nums ${isLowTime ? "text-red-400" : "text-white"}`}
-          >
+          <p className={`text-2xl font-mono font-bold tabular-nums ${isLowTime ? "text-red-400" : "text-white"}`}>
             {timerStr}
           </p>
         </motion.div>
+
+        {/* H · Controls hint — sits right above the Tab/V row, to the left of the timer */}
+        <motion.button
+          onClick={() => setShowControls((p) => !p)}
+          className="rounded-lg px-3 py-1.5 text-xs font-mono cursor-pointer transition-all"
+          style={{
+            background: showControls ? "rgba(99,102,241,0.15)" : "rgba(5,5,8,0.85)",
+            border: showControls ? "1px solid rgba(99,102,241,0.4)" : "1px solid rgba(255,255,255,0.1)",
+            color: showControls ? "#818cf8" : "#94a3b8",
+          }}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.6 }}
+        >
+          H · {showControls ? "Hide Keys" : "Controls"}
+        </motion.button>
 
         <div className="flex gap-2">
           <button
@@ -167,6 +206,39 @@ export function GameHUD() {
         )}
       </AnimatePresence>
 
+      {/* Door prompt */}
+      <AnimatePresence>
+        {nearbyDoor && (
+          <motion.div
+            className={`fixed ${nearbyInteractable ? "bottom-20" : "bottom-8"} left-1/2 -translate-x-1/2 z-30`}
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div
+              className="flex items-center gap-3 px-5 py-3 rounded-xl"
+              style={{
+                background: "rgba(5,5,8,0.9)",
+                border: "1px solid rgba(100,100,180,0.4)",
+                backdropFilter: "blur(16px)",
+                boxShadow: "0 0 20px rgba(100,100,180,0.15)",
+              }}
+            >
+              <span
+                className="text-sm font-mono font-bold rounded px-2 py-0.5"
+                style={{ background: "rgba(100,100,180,0.2)", color: "#a0a0e0", border: "1px solid rgba(100,100,180,0.4)" }}
+              >
+                T
+              </span>
+              <span className="text-sm text-slate-200">
+                {openDoors.includes(nearbyDoor) ? "Close door" : "Open door"}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Crosshair — center dot, hidden during dialogue */}
       {!nearbyInteractable && (
         <div className="fixed inset-0 z-20 pointer-events-none flex items-center justify-center">
@@ -182,48 +254,23 @@ export function GameHUD() {
         </div>
       )}
 
-      {/* Pointer-lock hint — shown when mouse is not captured */}
-      <AnimatePresence>
-        {!isLocked && (
-          <motion.div
-            className="fixed inset-0 z-20 pointer-events-none flex items-center justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div
-              className="px-5 py-3 rounded-xl text-sm font-mono text-slate-300 text-center"
-              style={{
-                background: "rgba(5,5,8,0.75)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                backdropFilter: "blur(12px)",
-                marginTop: "40vh",
-              }}
-            >
-              Click to enable mouse look
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Controls hint — fades out after 10 s */}
+      {/* Controls panel — toggled by H key or clicking the H chip above */}
       <AnimatePresence>
         {showControls && (
           <motion.div
-            className="fixed bottom-5 left-1/2 z-30 pointer-events-none"
-            style={{ transform: "translateX(-50%)" }}
-            initial={{ opacity: 0, y: 8 }}
+            className="fixed z-30 pointer-events-none"
+            style={{ top: "1rem", right: "220px" }}
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.4 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
           >
             <div
               className="flex items-center gap-4 px-5 py-2.5 rounded-xl text-xs font-mono text-slate-400"
               style={{
-                background: "rgba(5,5,8,0.82)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                backdropFilter: "blur(12px)",
+                background: "rgba(5,5,8,0.88)",
+                border: "1px solid rgba(99,102,241,0.18)",
+                backdropFilter: "blur(14px)",
               }}
             >
               {[
@@ -232,6 +279,8 @@ export function GameHUD() {
                 ["Scroll", "Zoom"],
                 ["Shift", "Sprint"],
                 ["E", "Interact"],
+                ["T", "Door"],
+                ["M", "Map"],
                 ["V", "Camera"],
               ].map(([key, label]) => (
                 <span key={key} className="flex items-center gap-1.5">
